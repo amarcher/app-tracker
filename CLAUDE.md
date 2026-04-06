@@ -22,17 +22,20 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 
 3. **Neon Postgres** (`api_usage` table) — Self-instrumented per-request API usage logged by each monitored project's server-side routes. Projects log to this table via `@neondatabase/serverless` with a fire-and-forget pattern.
 
+4. **Cloudflare GraphQL Analytics API** — Per-project CDN stats for projects using Cloudflare (R2 video hosting). Shows bandwidth, cache hit ratio, requests (cached vs uncached), and R2 storage. Each project maps to a Cloudflare Zone ID. Only shown for projects with `cloudflare: true` in the PROJECTS config.
+
 ### API Routes (`api/`)
 
 - `ga-traffic.ts` — Queries GA4 Data API. Accepts `?project=` to select the GA4 property. Property IDs are mapped from env vars in the `PROPERTIES` object.
 - `elevenlabs-usage.ts` — Queries ElevenLabs usage stats and subscription info. Account-wide, not project-specific.
 - `api-usage.ts` — Queries Neon Postgres for self-instrumented usage data. Accepts `?project=` to filter.
+- `cloudflare-cdn.ts` — Queries Cloudflare GraphQL API for HTTP request stats (`httpRequests1dGroups`) and R2 storage (`r2StorageAdaptiveGroups`). Accepts `?project=` to select the zone. Zone IDs mapped from env vars. Only returns data for projects with Cloudflare zones configured.
 
 ### Frontend
 
-- `App.tsx` — Project selector (8 projects + ElevenLabs account view), date range selector, conditional rendering based on selected view.
-- `useDashboardData.ts` — Fetches only the relevant APIs based on whether a project or ElevenLabs is selected.
-- Components: `TrafficChart`, `TopPagesTable`, `SourcesTable`, `ElevenLabsChart`, `ProductBreakdown`, `QuotaBar`, `MetricCard`.
+- `App.tsx` — Project selector (8 projects + ElevenLabs account view), date range selector, conditional rendering based on selected view. Projects with `cloudflare: true` show a CDN section.
+- `useDashboardData.ts` — Fetches only the relevant APIs based on whether a project or ElevenLabs is selected, and whether the project has Cloudflare.
+- Components: `TrafficChart`, `TopPagesTable`, `SourcesTable`, `ElevenLabsChart`, `ProductBreakdown`, `QuotaBar`, `MetricCard`, `CdnChart`.
 
 ### Adding a New Project
 
@@ -46,6 +49,11 @@ The monitored project itself needs:
 - Service account granted Viewer access on its GA4 property
 - `DASHBOARD_DATABASE_URL` env var (if it has API routes to instrument)
 - `logUsage()` calls in server-side API routes
+
+For projects using Cloudflare (R2 video CDN):
+- Add `CLOUDFLARE_ZONE_ID_<NAME>` env var to Vercel
+- Add entry to `ZONES` in `api/cloudflare-cdn.ts`
+- Set `cloudflare: true` on the project entry in `src/App.tsx`
 
 See `scripts/add-project.sh` for automation of some steps.
 
@@ -65,6 +73,9 @@ See `.env.example` for the full list. Key vars:
 - `GA4_PROPERTY_ID*` — One per monitored project
 - `ELEVENLABS_API_KEY` — For account-wide usage stats
 - `DATABASE_URL` — Neon Postgres connection string
+- `CLOUDFLARE_API_TOKEN` — Cloudflare API token (Zone > Analytics > Read, Account > Workers R2 Storage > Read)
+- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID
+- `CLOUDFLARE_ZONE_ID_*` — One per project using Cloudflare (e.g. `CLOUDFLARE_ZONE_ID_PERIODIC_TABLE`)
 
 ## Database Schema
 
