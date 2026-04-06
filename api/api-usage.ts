@@ -3,13 +3,21 @@ import { neon } from '@neondatabase/serverless';
 
 // Pricing per million tokens/characters (approximate, early 2026)
 const PRICING: Record<string, { inputPerM: number; outputPerM: number; charsPerM?: number }> = {
+  // Anthropic
   'claude-sonnet-4-20250514': { inputPerM: 3, outputPerM: 15 },
   'claude-haiku-4-5-20251001': { inputPerM: 0.80, outputPerM: 4 },
+  // OpenAI
+  'gpt-4o': { inputPerM: 2.50, outputPerM: 10 },
+  'gpt-4o-mini': { inputPerM: 0.15, outputPerM: 0.60 },
+  'gpt-4.1': { inputPerM: 2, outputPerM: 8 },
+  'gpt-4.1-mini': { inputPerM: 0.40, outputPerM: 1.60 },
+  'gpt-4.1-nano': { inputPerM: 0.10, outputPerM: 0.40 },
+  'o3-mini': { inputPerM: 1.10, outputPerM: 4.40 },
 };
 const ELEVENLABS_CHARS_PER_M = 0.30;
 
 function estimateCost(service: string, model: string | null, tokensIn: number, tokensOut: number, characters: number): number {
-  if (service === 'anthropic' && model && PRICING[model]) {
+  if ((service === 'anthropic' || service === 'openai') && model && PRICING[model]) {
     return (tokensIn * PRICING[model].inputPerM + tokensOut * PRICING[model].outputPerM) / 1_000_000;
   }
   if (service === 'elevenlabs') {
