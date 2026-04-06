@@ -424,4 +424,16 @@ tr:hover td {
     font-size: 13px;
     padding: 5px 12px;
   }
+
+  .chart-container {
+    padding: 8px 4px;
+  }
+
+  .metric-card {
+    padding: 12px 14px;
+  }
+
+  .metric-value {
+    font-size: 22px;
+  }
 }
