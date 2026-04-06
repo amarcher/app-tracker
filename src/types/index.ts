@@ -79,4 +79,28 @@ export interface ApiUsageResponse {
   recentCalls: ApiUsageRecentCall[];
 }
 
+export interface CdnDataPoint {
+  date: string;
+  bytes: number;
+  cachedBytes: number;
+  requests: number;
+  cachedRequests: number;
+}
+
+export interface CdnResponse {
+  timeseries: CdnDataPoint[];
+  totals: {
+    bandwidth: number;
+    cachedBandwidth: number;
+    requests: number;
+    cachedRequests: number;
+    cacheHitRatio: number;
+  };
+  r2: {
+    objectCount: number;
+    storageSizeBytes: number;
+    bucketName: string;
+  } | null;
+}
+
 export type DateRange = '7d' | '14d' | '30d' | '90d';

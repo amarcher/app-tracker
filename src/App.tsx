@@ -7,6 +7,7 @@ import { SourcesTable } from './components/SourcesTable';
 import { ElevenLabsChart } from './components/ElevenLabsChart';
 import { QuotaBar } from './components/QuotaBar';
 import { ProductBreakdown } from './components/ProductBreakdown';
+import { CdnChart, formatBytes } from './components/CdnChart';
 import type { DateRange } from './types';
 import './App.css';
 
@@ -17,10 +18,10 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '90d', label: '90 days' },
 ];
 
-const PROJECTS: { value: string; label: string; domain: string }[] = [
-  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech' },
+const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean }[] = [
+  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true },
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech' },
-  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech' },
+  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com' },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com' },
   { value: 'superbowl-squares', label: 'Superbowl Squares', domain: 'superbowl-squares.com' },
@@ -34,9 +35,9 @@ function App() {
   const [range, setRange] = useState<DateRange>('30d');
   const [project, setProject] = useState(PROJECTS[0].value);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
-  const { traffic, elevenlabs, apiUsage, loading, error, refetch } = useDashboardData(range, project);
-
   const currentProject = PROJECTS.find((p) => p.value === project);
+  const { traffic, elevenlabs, apiUsage, cloudflare, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare);
+
   const isElevenLabsView = project === ELEVENLABS_VIEW;
 
   return (
@@ -222,6 +223,33 @@ function App() {
               </div>
             )}
           </section>
+
+          {currentProject?.cloudflare && cloudflare && (
+            <section className="section">
+              <h2>CDN (Cloudflare)</h2>
+              <div className="metrics-row">
+                <MetricCard label="Bandwidth" value={formatBytes(cloudflare.totals.bandwidth)} />
+                <MetricCard
+                  label="Cache Hit Ratio"
+                  value={`${cloudflare.totals.cacheHitRatio.toFixed(1)}%`}
+                  subtitle={`${formatBytes(cloudflare.totals.cachedBandwidth)} cached`}
+                />
+                <MetricCard
+                  label="Requests"
+                  value={cloudflare.totals.requests}
+                  subtitle={`${cloudflare.totals.cachedRequests.toLocaleString()} cached`}
+                />
+                {cloudflare.r2 && (
+                  <MetricCard
+                    label="R2 Storage"
+                    value={formatBytes(cloudflare.r2.storageSizeBytes)}
+                    subtitle={`${cloudflare.r2.objectCount.toLocaleString()} objects`}
+                  />
+                )}
+              </div>
+              <CdnChart data={cloudflare.timeseries} />
+            </section>
+          )}
         </>
       )}
 
