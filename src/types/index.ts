@@ -3,6 +3,10 @@ export interface TrafficDataPoint {
   pageviews: number;
   sessions: number;
   users: number;
+  newUsers: number;
+  engagementRate: number;
+  avgSessionDuration: number;
+  bounceRate: number;
 }
 
 export interface TopPage {
@@ -16,6 +20,8 @@ export interface TrafficSource {
   medium: string;
   sessions: number;
   users: number;
+  engagementRate: number;
+  avgSessionDuration: number;
 }
 
 export interface GaTrafficResponse {
@@ -26,6 +32,10 @@ export interface GaTrafficResponse {
     pageviews: number;
     sessions: number;
     users: number;
+    newUsers: number;
+    engagementRate: number;
+    avgSessionDuration: number;
+    bounceRate: number;
   };
 }
 
@@ -60,6 +70,7 @@ export interface ApiUsageTotalRow {
   tokens_out: number;
   characters: number;
   requests: number;
+  estimatedCost: number;
 }
 
 export interface ApiUsageRecentCall {
@@ -77,6 +88,7 @@ export interface ApiUsageResponse {
   timeseries: ApiUsageTimeseriesRow[];
   totals: ApiUsageTotalRow[];
   recentCalls: ApiUsageRecentCall[];
+  totalCost: number;
 }
 
 export interface CdnDataPoint {
@@ -101,6 +113,19 @@ export interface CdnResponse {
     storageSizeBytes: number;
     bucketName: string;
   } | null;
+}
+
+export interface PortfolioProject {
+  project: string;
+  requests: number;
+  tokensIn: number;
+  tokensOut: number;
+  characters: number;
+  estimatedCost: number;
+}
+
+export interface PortfolioResponse {
+  projects: PortfolioProject[];
 }
 
 export type DateRange = '7d' | '14d' | '30d' | '90d';

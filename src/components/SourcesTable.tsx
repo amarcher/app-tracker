@@ -4,6 +4,13 @@ interface SourcesTableProps {
   data: TrafficSource[];
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
+
 export function SourcesTable({ data }: SourcesTableProps) {
   return (
     <div className="table-container">
@@ -13,7 +20,8 @@ export function SourcesTable({ data }: SourcesTableProps) {
             <th>Source</th>
             <th>Medium</th>
             <th>Sessions</th>
-            <th>Users</th>
+            <th>Engaged</th>
+            <th>Avg Duration</th>
           </tr>
         </thead>
         <tbody>
@@ -22,7 +30,8 @@ export function SourcesTable({ data }: SourcesTableProps) {
               <td>{s.source}</td>
               <td className="source-medium">{s.medium}</td>
               <td>{s.sessions.toLocaleString()}</td>
-              <td>{s.users.toLocaleString()}</td>
+              <td>{(s.engagementRate * 100).toFixed(0)}%</td>
+              <td className="source-medium">{formatDuration(s.avgSessionDuration)}</td>
             </tr>
           ))}
         </tbody>

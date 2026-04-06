@@ -15,9 +15,10 @@ describe('App', () => {
     expect(screen.getByText('Mark My Words')).toBeDefined();
   });
 
-  it('renders the ElevenLabs account button', () => {
+  it('renders account-level buttons', () => {
     render(<App />);
     expect(screen.getByText('ElevenLabs')).toBeDefined();
+    expect(screen.getByText('Portfolio')).toBeDefined();
   });
 
   it('renders date range selector', () => {
@@ -38,6 +39,6 @@ describe('App', () => {
   it('renders Traffic and API Usage section headers', () => {
     render(<App />);
     expect(screen.getByText('Traffic')).toBeDefined();
-    expect(screen.getByText('API Usage (per-project)')).toBeDefined();
+    expect(screen.getByText('API Usage')).toBeDefined();
   });
 });

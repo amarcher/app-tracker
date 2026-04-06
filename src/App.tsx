@@ -30,15 +30,31 @@ const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boo
 ];
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
+const PORTFOLIO_VIEW = '__portfolio__';
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
+
+function formatCost(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
 
 function App() {
   const [range, setRange] = useState<DateRange>('30d');
   const [project, setProject] = useState(PROJECTS[0].value);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
+  const isPortfolioView = project === PORTFOLIO_VIEW;
+  const isProjectView = !isElevenLabsView && !isPortfolioView;
 
   return (
     <div className="dashboard">
@@ -54,6 +70,12 @@ function App() {
                 {p.label}
               </button>
             ))}
+            <button
+              className={`project-btn project-btn--account ${isPortfolioView ? 'active' : ''}`}
+              onClick={() => setProject(PORTFOLIO_VIEW)}
+            >
+              Portfolio
+            </button>
             <button
               className={`project-btn project-btn--account ${isElevenLabsView ? 'active' : ''}`}
               onClick={() => setProject(ELEVENLABS_VIEW)}
@@ -81,9 +103,63 @@ function App() {
         </div>
       </header>
 
-      {error && !isElevenLabsView && <div className="error-banner">{error}</div>}
+      {error && isProjectView && <div className="error-banner">{error}</div>}
 
-      {isElevenLabsView ? (
+      {isPortfolioView ? (
+        <section className="section">
+          <h2>Portfolio Summary</h2>
+          {portfolio && portfolio.projects.length > 0 ? (
+            <>
+              <div className="metrics-row">
+                <MetricCard
+                  label="Total API Requests"
+                  value={portfolio.projects.reduce((s, p) => s + p.requests, 0)}
+                />
+                <MetricCard
+                  label="Estimated Cost"
+                  value={formatCost(portfolio.projects.reduce((s, p) => s + p.estimatedCost, 0))}
+                />
+                <MetricCard
+                  label="Projects with Usage"
+                  value={portfolio.projects.length}
+                  subtitle={`of ${PROJECTS.length} total`}
+                />
+              </div>
+              <div className="table-section">
+                <h3>Cost by Project</h3>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Project</th>
+                        <th>Requests</th>
+                        <th>Tokens</th>
+                        <th>Characters</th>
+                        <th>Est. Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {portfolio.projects.map((p) => (
+                        <tr key={p.project}>
+                          <td>{PROJECTS.find((pr) => pr.value === p.project)?.label ?? p.project}</td>
+                          <td>{p.requests.toLocaleString()}</td>
+                          <td>{(p.tokensIn + p.tokensOut).toLocaleString()}</td>
+                          <td>{p.characters > 0 ? p.characters.toLocaleString() : '—'}</td>
+                          <td className="page-path">{formatCost(p.estimatedCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="loading">
+              {loading ? 'Loading...' : 'No API usage data yet across projects.'}
+            </div>
+          )}
+        </section>
+      ) : isElevenLabsView ? (
         <section className="section">
           <h2>ElevenLabs Account Usage</h2>
           {elevenlabs && (
@@ -138,7 +214,11 @@ function App() {
                 <div className="metrics-row">
                   <MetricCard label="Pageviews" value={traffic.totals.pageviews} />
                   <MetricCard label="Sessions" value={traffic.totals.sessions} />
-                  <MetricCard label="Users" value={traffic.totals.users} />
+                  <MetricCard label="Users" value={traffic.totals.users}
+                    subtitle={`${traffic.totals.newUsers} new`} />
+                  <MetricCard label="Engagement" value={`${(traffic.totals.engagementRate * 100).toFixed(0)}%`}
+                    subtitle={formatDuration(traffic.totals.avgSessionDuration)} />
+                  <MetricCard label="Bounce Rate" value={`${(traffic.totals.bounceRate * 100).toFixed(0)}%`} />
                 </div>
                 <div className="chart-header">
                   <div className="metric-toggle">
@@ -160,7 +240,7 @@ function App() {
                     <TopPagesTable data={traffic.topPages} />
                   </div>
                   <div className="table-section">
-                    <h3>Traffic Sources</h3>
+                    <h3>Traffic Sources (by quality)</h3>
                     <SourcesTable data={traffic.sources} />
                   </div>
                 </div>
@@ -170,7 +250,7 @@ function App() {
           </section>
 
           <section className="section">
-            <h2>API Usage (per-project)</h2>
+            <h2>API Usage</h2>
             {apiUsage && apiUsage.totals.length > 0 ? (
               <>
                 <div className="metrics-row">
@@ -180,10 +260,17 @@ function App() {
                       label={t.service.charAt(0).toUpperCase() + t.service.slice(1)}
                       value={t.requests}
                       subtitle={t.service === 'anthropic'
-                        ? `${Number(t.tokens_in).toLocaleString()} in / ${Number(t.tokens_out).toLocaleString()} out tokens`
-                        : `${Number(t.characters).toLocaleString()} characters`}
+                        ? `${Number(t.tokens_in).toLocaleString()} in / ${Number(t.tokens_out).toLocaleString()} out`
+                        : `${Number(t.characters).toLocaleString()} chars`}
                     />
                   ))}
+                  <MetricCard
+                    label="Est. Cost"
+                    value={formatCost(apiUsage.totalCost)}
+                    subtitle={apiUsage.totals.reduce((s, t) => s + t.requests, 0) > 0
+                      ? `${formatCost(apiUsage.totalCost / apiUsage.totals.reduce((s, t) => s + t.requests, 0))}/req`
+                      : ''}
+                  />
                 </div>
                 {apiUsage.recentCalls.length > 0 && (
                   <div className="table-section">
@@ -254,7 +341,7 @@ function App() {
       )}
 
       <footer className="dashboard-footer">
-        <span>{isElevenLabsView ? 'ElevenLabs Account' : currentProject?.domain}</span>
+        <span>{isPortfolioView ? 'All Projects' : isElevenLabsView ? 'ElevenLabs Account' : currentProject?.domain}</span>
       </footer>
     </div>
   );

@@ -26,14 +26,15 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 
 ### API Routes (`api/`)
 
-- `ga-traffic.ts` — Queries GA4 Data API. Accepts `?project=` to select the GA4 property. Property IDs are mapped from env vars in the `PROPERTIES` object.
+- `ga-traffic.ts` — Queries GA4 Data API. Accepts `?project=` to select the GA4 property. Property IDs are mapped from env vars in the `PROPERTIES` object. Returns engagement metrics (engagement rate, avg session duration, bounce rate, new vs returning users) alongside traffic.
+- `portfolio-summary.ts` — Aggregates API usage and estimated costs across all projects from Neon. Returns per-project request counts, token/character totals, and cost estimates based on model pricing.
 - `elevenlabs-usage.ts` — Queries ElevenLabs usage stats and subscription info. Account-wide, not project-specific.
 - `api-usage.ts` — Queries Neon Postgres for self-instrumented usage data. Accepts `?project=` to filter.
 - `cloudflare-cdn.ts` — Queries Cloudflare GraphQL API for HTTP request stats (`httpRequests1dGroups`) and R2 storage (`r2StorageAdaptiveGroups`). Accepts `?project=` to select the zone. Zone IDs mapped from env vars. Only returns data for projects with Cloudflare zones configured.
 
 ### Frontend
 
-- `App.tsx` — Project selector (8 projects + ElevenLabs account view), date range selector, conditional rendering based on selected view. Projects with `cloudflare: true` show a CDN section.
+- `App.tsx` — Project selector (8 projects + Portfolio + ElevenLabs account views), date range selector, conditional rendering based on selected view. Projects with `cloudflare: true` show a CDN section. Traffic section shows engagement metrics (engagement rate, session duration, bounce rate, new users). API Usage section shows estimated costs.
 - `useDashboardData.ts` — Fetches only the relevant APIs based on whether a project or ElevenLabs is selected, and whether the project has Cloudflare.
 - Components: `TrafficChart`, `TopPagesTable`, `SourcesTable`, `ElevenLabsChart`, `ProductBreakdown`, `QuotaBar`, `MetricCard`, `CdnChart`.
 

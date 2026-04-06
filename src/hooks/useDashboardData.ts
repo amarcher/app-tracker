@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, DateRange } from '../types';
+import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, DateRange } from '../types';
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
+const PORTFOLIO_VIEW = '__portfolio__';
 
 export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean) {
   const [traffic, setTraffic] = useState<GaTrafficResponse | null>(null);
   const [elevenlabs, setElevenlabs] = useState<ElevenLabsResponse | null>(null);
   const [apiUsage, setApiUsage] = useState<ApiUsageResponse | null>(null);
   const [cloudflare, setCloudflare] = useState<CdnResponse | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,6 +18,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
     setError(null);
 
     const isElevenLabs = project === ELEVENLABS_VIEW;
+    const isPortfolio = project === PORTFOLIO_VIEW;
 
     try {
       if (isElevenLabs) {
@@ -23,6 +26,15 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         if (!elevenRes.ok) throw new Error('Failed to fetch ElevenLabs data');
         setElevenlabs(await elevenRes.json());
         setTraffic(null);
+        setApiUsage(null);
+        setCloudflare(null);
+        setPortfolio(null);
+      } else if (isPortfolio) {
+        const portfolioRes = await fetch(`/api/portfolio-summary?range=${range}`);
+        if (!portfolioRes.ok) throw new Error('Failed to fetch portfolio data');
+        setPortfolio(await portfolioRes.json());
+        setTraffic(null);
+        setElevenlabs(null);
         setApiUsage(null);
         setCloudflare(null);
       } else {
@@ -40,6 +52,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         if (!trafficRes.ok) throw new Error('Failed to fetch traffic data');
         setTraffic(await trafficRes.json());
         setElevenlabs(null);
+        setPortfolio(null);
 
         if (apiUsageRes.ok) {
           setApiUsage(await apiUsageRes.json());
@@ -66,5 +79,5 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
     fetchData();
   }, [fetchData]);
 
-  return { traffic, elevenlabs, apiUsage, cloudflare, loading, error, refetch: fetchData };
+  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, loading, error, refetch: fetchData };
 }

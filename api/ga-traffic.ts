@@ -55,6 +55,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           { name: 'screenPageViews' },
           { name: 'sessions' },
           { name: 'totalUsers' },
+          { name: 'newUsers' },
+          { name: 'engagementRate' },
+          { name: 'averageSessionDuration' },
+          { name: 'bounceRate' },
         ],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
       }),
@@ -79,6 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metrics: [
           { name: 'sessions' },
           { name: 'totalUsers' },
+          { name: 'engagementRate' },
+          { name: 'averageSessionDuration' },
         ],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: 10,
@@ -90,6 +96,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pageviews: parseInt(row.metricValues![0].value!, 10),
       sessions: parseInt(row.metricValues![1].value!, 10),
       users: parseInt(row.metricValues![2].value!, 10),
+      newUsers: parseInt(row.metricValues![3].value!, 10),
+      engagementRate: parseFloat(row.metricValues![4].value!),
+      avgSessionDuration: parseFloat(row.metricValues![5].value!),
+      bounceRate: parseFloat(row.metricValues![6].value!),
     }));
 
     const topPages = (topPagesResponse[0].rows || []).map((row) => ({
@@ -103,16 +113,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       medium: row.dimensionValues![1].value!,
       sessions: parseInt(row.metricValues![0].value!, 10),
       users: parseInt(row.metricValues![1].value!, 10),
+      engagementRate: parseFloat(row.metricValues![2].value!),
+      avgSessionDuration: parseFloat(row.metricValues![3].value!),
     }));
 
-    const totals = timeseries.reduce(
-      (acc, d) => ({
-        pageviews: acc.pageviews + d.pageviews,
-        sessions: acc.sessions + d.sessions,
-        users: acc.users + d.users,
-      }),
-      { pageviews: 0, sessions: 0, users: 0 }
-    );
+    const totalSessions = timeseries.reduce((s, d) => s + d.sessions, 0);
+    const totals = {
+      pageviews: timeseries.reduce((s, d) => s + d.pageviews, 0),
+      sessions: totalSessions,
+      users: timeseries.reduce((s, d) => s + d.users, 0),
+      newUsers: timeseries.reduce((s, d) => s + d.newUsers, 0),
+      engagementRate: totalSessions > 0
+        ? timeseries.reduce((s, d) => s + d.engagementRate * d.sessions, 0) / totalSessions
+        : 0,
+      avgSessionDuration: totalSessions > 0
+        ? timeseries.reduce((s, d) => s + d.avgSessionDuration * d.sessions, 0) / totalSessions
+        : 0,
+      bounceRate: totalSessions > 0
+        ? timeseries.reduce((s, d) => s + d.bounceRate * d.sessions, 0) / totalSessions
+        : 0,
+    };
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
     res.json({ timeseries, topPages, sources, totals });
