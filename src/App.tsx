@@ -20,7 +20,7 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
 
 const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean }[] = [
   { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true },
-  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech' },
+  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com' },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com' },

@@ -14,14 +14,14 @@ const ZONES: Record<string, { zoneId: string; cdnHost: string }> = {
   },
   'space-explorer': {
     zoneId: process.env.CLOUDFLARE_ZONE_ID_SPACE_EXPLORER || '',
-    cdnHost: 'videos.spaceexplorer.tech',
+    cdnHost: 'assets.spaceexplorer.tech',
   },
 };
 
 const R2_BUCKETS: Record<string, string> = {
   'periodic-table': 'periodic-table-elements',
   'animal-penpals': 'animal-penpals-videos',
-  'space-explorer': 'solar-system-videos',
+  'space-explorer': 'solar-system-textures',
 };
 
 function daysAgoDate(days: number): string {
