@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
-const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
+const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN?.trim();
+const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
 
 const ZONES: Record<string, { zoneId: string; cdnHost: string }> = {
   'animal-penpals': {
@@ -53,6 +53,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const project = (req.query.project as string) || '';
 
     const zone = ZONES[project];
+    if (zone) {
+      zone.zoneId = zone.zoneId.trim();
+    }
     if (!zone || !zone.zoneId) {
       return res.status(400).json({ error: `No Cloudflare zone configured for project: ${project}` });
     }
@@ -61,66 +64,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const until = daysAgoDate(0);
 
     // Fetch HTTP stats and R2 storage in parallel
-    const httpQuery = `
-      query HttpStats($zoneTag: string!, $since: Date!, $until: Date!) {
-        viewer {
-          zones(filter: { zoneTag: $zoneTag }) {
-            httpRequests1dGroups(
-              filter: { date_geq: $since, date_leq: $until }
-              orderBy: [date_ASC]
-              limit: 1000
-            ) {
-              dimensions { date }
-              sum {
-                bytes
-                requests
-                cachedBytes
-                cachedRequests
-              }
+    // Cloudflare GraphQL uses inline filter values, not standard variables
+    const httpQuery = `{
+      viewer {
+        zones(filter: { zoneTag: "${zone.zoneId}" }) {
+          httpRequests1dGroups(
+            filter: { date_geq: "${since}", date_leq: "${until}" }
+            orderBy: [date_ASC]
+            limit: 1000
+          ) {
+            dimensions { date }
+            sum {
+              bytes
+              requests
+              cachedBytes
+              cachedRequests
             }
           }
         }
       }
-    `;
-
-    const r2Query = `
-      query R2Storage($accountTag: string!, $bucket: string!, $date: Date!) {
-        viewer {
-          accounts(filter: { accountTag: $accountTag }) {
-            r2StorageAdaptiveGroups(
-              filter: { date: $date, bucketName: $bucket }
-              limit: 1
-            ) {
-              max {
-                objectCount
-                payloadSize
-                metadataSize
-              }
-            }
-          }
-        }
-      }
-    `;
+    }`;
 
     const bucketName = R2_BUCKETS[project];
     const yesterday = daysAgoDate(1);
 
+    const r2Query = `{
+      viewer {
+        accounts(filter: { accountTag: "${CLOUDFLARE_ACCOUNT_ID}" }) {
+          r2StorageAdaptiveGroups(
+            filter: { date: "${yesterday}", bucketName: "${bucketName}" }
+            limit: 1
+          ) {
+            max {
+              objectCount
+              payloadSize
+              metadataSize
+            }
+          }
+        }
+      }
+    }`;
+
     const [httpResult, r2Result] = await Promise.all([
-      queryGraphQL(httpQuery, {
-        zoneTag: zone.zoneId,
-        since,
-        until,
-      }),
+      queryGraphQL(httpQuery, {}),
       bucketName && CLOUDFLARE_ACCOUNT_ID
-        ? queryGraphQL(r2Query, {
-            accountTag: CLOUDFLARE_ACCOUNT_ID,
-            bucket: bucketName,
-            date: yesterday,
-          }).catch(() => null)
+        ? queryGraphQL(r2Query, {}).catch(() => null)
         : Promise.resolve(null),
     ]);
 
-    const httpGroups = httpResult?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
+      const httpGroups = httpResult?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
 
     const timeseries = httpGroups.map((g: any) => ({
       date: g.dimensions.date.replace(/-/g, ''),
