@@ -57,7 +57,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       zone.zoneId = zone.zoneId.trim();
     }
     if (!zone || !zone.zoneId) {
-      return res.status(400).json({ error: `No Cloudflare zone configured for project: ${project}` });
+      // Return empty data instead of 400 to avoid console errors
+      return res.json({
+        timeseries: [],
+        totals: { bandwidth: 0, cachedBandwidth: 0, requests: 0, cachedRequests: 0, cacheHitRatio: 0 },
+        r2: null,
+      });
     }
 
     const since = daysAgoDate(days);

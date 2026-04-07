@@ -18,15 +18,15 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '90d', label: '90 days' },
 ];
 
-const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean }[] = [
-  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true },
+const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean }[] = [
+  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true },
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true },
-  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com' },
-  { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com' },
+  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true },
+  { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
   { value: 'superbowl-squares', label: 'Superbowl Squares', domain: 'superbowl-squares.com' },
-  { value: 'tabbit-rabbit', label: 'Tabbit Rabbit', domain: 'tabbitrabbit.com' },
-  { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz' },
+  { value: 'tabbit-rabbit', label: 'Tabbit Rabbit', domain: 'tabbitrabbit.com', hasApiRoutes: true },
+  { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz', hasApiRoutes: true },
 ];
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
@@ -297,7 +297,9 @@ function App() {
               </>
             ) : (
               <div className="loading">
-                {loading ? 'Loading...' : `No API usage data yet for ${currentProject?.label ?? 'this project'}.`}
+                {loading ? 'Loading...' : currentProject?.hasApiRoutes
+                  ? `No API usage data yet for ${currentProject.label}.`
+                  : `${currentProject?.label ?? 'This project'} uses client-side APIs only — no server-side usage to track.`}
               </div>
             )}
           </section>
