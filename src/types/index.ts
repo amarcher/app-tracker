@@ -128,4 +128,4 @@ export interface PortfolioResponse {
   projects: PortfolioProject[];
 }
 
-export type DateRange = '7d' | '14d' | '30d' | '90d';
+export type DateRange = '1d' | '7d' | '30d' | '90d';

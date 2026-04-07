@@ -23,8 +23,8 @@ describe('App', () => {
 
   it('renders date range selector', () => {
     render(<App />);
+    expect(screen.getByText('24 hours')).toBeDefined();
     expect(screen.getByText('7 days')).toBeDefined();
-    expect(screen.getByText('14 days')).toBeDefined();
     expect(screen.getByText('30 days')).toBeDefined();
     expect(screen.getByText('90 days')).toBeDefined();
   });

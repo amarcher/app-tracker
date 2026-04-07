@@ -12,8 +12,8 @@ import type { DateRange } from './types';
 import './App.css';
 
 const DATE_RANGES: { value: DateRange; label: string }[] = [
+  { value: '1d', label: '24 hours' },
   { value: '7d', label: '7 days' },
-  { value: '14d', label: '14 days' },
   { value: '30d', label: '30 days' },
   { value: '90d', label: '90 days' },
 ];
@@ -60,30 +60,21 @@ function App() {
     <div className="dashboard">
       <header className="dashboard-header">
         <div className="header-left">
-          <div className="project-selector">
-            {PROJECTS.map((p) => (
-              <button
-                key={p.value}
-                className={`project-btn ${project === p.value ? 'active' : ''}`}
-                onClick={() => setProject(p.value)}
-              >
-                {p.label}
-              </button>
-            ))}
-            <button
-              className={`project-btn project-btn--account ${isPortfolioView ? 'active' : ''}`}
-              onClick={() => setProject(PORTFOLIO_VIEW)}
-            >
-              Portfolio
-            </button>
-            <button
-              className={`project-btn project-btn--account ${isElevenLabsView ? 'active' : ''}`}
-              onClick={() => setProject(ELEVENLABS_VIEW)}
-            >
-              ElevenLabs
-            </button>
-          </div>
-          <span className="header-subtitle">App Dashboard</span>
+          <select
+            className="project-select"
+            value={project}
+            onChange={(e) => setProject(e.target.value)}
+          >
+            <optgroup label="Projects">
+              {PROJECTS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Account">
+              <option value={PORTFOLIO_VIEW}>Portfolio</option>
+              <option value={ELEVENLABS_VIEW}>ElevenLabs</option>
+            </optgroup>
+          </select>
         </div>
         <div className="header-controls">
           <div className="range-selector">
