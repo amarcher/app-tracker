@@ -8,6 +8,7 @@ import { ElevenLabsChart } from './components/ElevenLabsChart';
 import { QuotaBar } from './components/QuotaBar';
 import { ProductBreakdown } from './components/ProductBreakdown';
 import { CdnChart, formatBytes } from './components/CdnChart';
+import { HomeOverview } from './components/HomeOverview';
 import type { DateRange } from './types';
 import './App.css';
 
@@ -31,6 +32,7 @@ const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boo
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
+const HOME_VIEW = '__home__';
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -46,15 +48,20 @@ function formatCost(usd: number): string {
 }
 
 function App() {
-  const [range, setRange] = useState<DateRange>('30d');
-  const [project, setProject] = useState(PROJECTS[0].value);
+  const [range, setRange] = useState<DateRange>('1d');
+  const [project, setProject] = useState<string>(HOME_VIEW);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
-  const isProjectView = !isElevenLabsView && !isPortfolioView;
+  const isHomeView = project === HOME_VIEW;
+  const isProjectView = !isElevenLabsView && !isPortfolioView && !isHomeView;
+
+  const projectLabels: Record<string, string> = Object.fromEntries(
+    PROJECTS.map((p) => [p.value, p.label]),
+  );
 
   return (
     <div className="dashboard">
@@ -65,6 +72,9 @@ function App() {
             value={project}
             onChange={(e) => setProject(e.target.value)}
           >
+            <optgroup label="Overview">
+              <option value={HOME_VIEW}>Home</option>
+            </optgroup>
             <optgroup label="Projects">
               {PROJECTS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -94,9 +104,21 @@ function App() {
         </div>
       </header>
 
-      {error && isProjectView && <div className="error-banner">{error}</div>}
+      {error && (isProjectView || isHomeView) && <div className="error-banner">{error}</div>}
 
-      {isPortfolioView ? (
+      {isHomeView ? (
+        overview ? (
+          <HomeOverview
+            data={overview}
+            projectLabels={projectLabels}
+            onSelectProject={setProject}
+          />
+        ) : (
+          <section className="section">
+            <div className="loading">{loading ? 'Loading overview...' : 'No data.'}</div>
+          </section>
+        )
+      ) : isPortfolioView ? (
         <section className="section">
           <h2>Portfolio Summary</h2>
           {portfolio && portfolio.projects.length > 0 ? (
@@ -334,7 +356,7 @@ function App() {
       )}
 
       <footer className="dashboard-footer">
-        <span>{isPortfolioView ? 'All Projects' : isElevenLabsView ? 'ElevenLabs Account' : currentProject?.domain}</span>
+        <span>{isHomeView ? 'All Projects' : isPortfolioView ? 'All Projects' : isElevenLabsView ? 'ElevenLabs Account' : currentProject?.domain}</span>
       </footer>
     </div>
   );

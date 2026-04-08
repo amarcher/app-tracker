@@ -10,7 +10,7 @@ const ELEVENLABS_CHARS_PER_M = 0.30;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DATABASE_URL!.trim());
     const range = (req.query.range as string) || '30d';
     const days = parseInt(range.replace('d', ''), 10) || 30;
 

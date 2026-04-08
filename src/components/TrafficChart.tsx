@@ -10,6 +10,11 @@ import {
 import type { TrafficDataPoint } from '../types';
 
 function formatDate(dateStr: string): string {
+  // Daily: "YYYYMMDD" → "MM/DD"
+  // Hourly: "YYYYMMDDHH" → "HH:00"
+  if (dateStr.length === 10) {
+    return `${dateStr.slice(8, 10)}:00`;
+  }
   const m = dateStr.slice(4, 6);
   const d = dateStr.slice(6, 8);
   return `${m}/${d}`;
