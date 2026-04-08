@@ -128,4 +128,26 @@ export interface PortfolioResponse {
   projects: PortfolioProject[];
 }
 
+export interface TrafficOverviewProjectTotals {
+  pageviews: number;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  engagementRate: number;
+  avgSessionDuration: number;
+}
+
+export interface TrafficOverviewProject {
+  project: string;
+  current: TrafficOverviewProjectTotals;
+  previous: TrafficOverviewProjectTotals | null;
+  usersChangePct: number;
+  pageviewsChangePct: number;
+}
+
+export interface TrafficOverviewResponse {
+  projects: TrafficOverviewProject[];
+  range: string;
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const API_KEY = process.env.ELEVENLABS_API_KEY;
+const API_KEY = process.env.ELEVENLABS_API_KEY?.trim();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {

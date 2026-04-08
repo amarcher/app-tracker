@@ -1,24 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import { parseDateHour, tzForProject } from './_shared/timezone.js';
+
+const env = (name: string) => (process.env[name] ?? '').trim();
 
 const PROPERTIES: Record<string, string> = {
-  'animal-penpals': process.env.GA4_PROPERTY_ID || '',
-  'space-explorer': process.env.GA4_PROPERTY_ID_SPACE_EXPLORER || '',
-  'periodic-table': process.env.GA4_PROPERTY_ID_PERIODIC_TABLE || '',
-  'crossword-clash': process.env.GA4_PROPERTY_ID_CROSSWORD_CLASH || '',
-  'ticket-for-dinner': process.env.GA4_PROPERTY_ID_TICKET_FOR_DINNER || '',
-  'superbowl-squares': process.env.GA4_PROPERTY_ID_SUPERBOWL_SQUARES || '',
-  'tabbit-rabbit': process.env.GA4_PROPERTY_ID_TABBIT_RABBIT || '',
-  'mark-my-words': process.env.GA4_PROPERTY_ID_MARK_MY_WORDS || '',
+  'animal-penpals': env('GA4_PROPERTY_ID'),
+  'space-explorer': env('GA4_PROPERTY_ID_SPACE_EXPLORER'),
+  'periodic-table': env('GA4_PROPERTY_ID_PERIODIC_TABLE'),
+  'crossword-clash': env('GA4_PROPERTY_ID_CROSSWORD_CLASH'),
+  'ticket-for-dinner': env('GA4_PROPERTY_ID_TICKET_FOR_DINNER'),
+  'superbowl-squares': env('GA4_PROPERTY_ID_SUPERBOWL_SQUARES'),
+  'tabbit-rabbit': env('GA4_PROPERTY_ID_TABBIT_RABBIT'),
+  'mark-my-words': env('GA4_PROPERTY_ID_MARK_MY_WORDS'),
 };
 
 function getClient() {
-  const keyJson = process.env.GA4_KEY_JSON;
+  const keyJson = env('GA4_KEY_JSON');
   if (keyJson) {
     const credentials = JSON.parse(keyJson);
     return new BetaAnalyticsDataClient({ credentials });
   }
-  const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const keyFile = env('GOOGLE_APPLICATION_CREDENTIALS');
   if (keyFile) {
     return new BetaAnalyticsDataClient({ keyFilename: keyFile });
   }
@@ -43,14 +46,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const client = getClient();
-    const startDate = daysAgoDate(days);
+    // For days=1: rolling 24h using `dateHour` dimension (fetch 3 calendar days
+    // to cover the last 48h window in any timezone).
+    // For days>1: last N calendar days inclusive of today, matching
+    // api/traffic-overview.ts.
+    const isRolling24h = days === 1;
+    const tz = tzForProject(project);
+    // Timeseries query needs 3 calendar days of hourly data to cover the
+    // rolling 48h window in any tz. topPages/sources can use a tighter range.
+    const startDate = isRolling24h ? daysAgoDate(2) : daysAgoDate(days - 1);
     const endDate = 'today';
+    const listStartDate = isRolling24h ? daysAgoDate(1) : startDate;
 
     const [timeseriesResponse, topPagesResponse, sourcesResponse] = await Promise.all([
       client.runReport({
         property: `properties/${propertyId}`,
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'date' }],
+        dimensions: [{ name: isRolling24h ? 'dateHour' : 'date' }],
         metrics: [
           { name: 'screenPageViews' },
           { name: 'sessions' },
@@ -60,11 +72,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           { name: 'averageSessionDuration' },
           { name: 'bounceRate' },
         ],
-        orderBys: [{ dimension: { dimensionName: 'date' } }],
+        orderBys: [{ dimension: { dimensionName: isRolling24h ? 'dateHour' : 'date' } }],
+        limit: isRolling24h ? 500 : 1000,
       }),
       client.runReport({
         property: `properties/${propertyId}`,
-        dateRanges: [{ startDate, endDate }],
+        dateRanges: [{ startDate: listStartDate, endDate }],
         dimensions: [{ name: 'pagePath' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -75,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
       client.runReport({
         property: `properties/${propertyId}`,
-        dateRanges: [{ startDate, endDate }],
+        dateRanges: [{ startDate: listStartDate, endDate }],
         dimensions: [
           { name: 'sessionSource' },
           { name: 'sessionMedium' },
@@ -91,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     ]);
 
-    const timeseries = (timeseriesResponse[0].rows || []).map((row) => ({
+    const allPoints = (timeseriesResponse[0].rows || []).map((row) => ({
       date: row.dimensionValues![0].value!,
       pageviews: parseInt(row.metricValues![0].value!, 10),
       sessions: parseInt(row.metricValues![1].value!, 10),
@@ -101,6 +114,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       avgSessionDuration: parseFloat(row.metricValues![5].value!),
       bounceRate: parseFloat(row.metricValues![6].value!),
     }));
+
+    // For rolling 24h: keep only hours within the last 24h wall-clock window.
+    const timeseries = isRolling24h
+      ? allPoints.filter((p) => {
+          const ageMs = Date.now() - parseDateHour(p.date, tz);
+          return ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
+        })
+      : allPoints;
 
     const topPages = (topPagesResponse[0].rows || []).map((row) => ({
       path: row.dimensionValues![0].value!,

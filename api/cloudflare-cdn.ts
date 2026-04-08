@@ -5,15 +5,15 @@ const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
 
 const ZONES: Record<string, { zoneId: string; cdnHost: string }> = {
   'animal-penpals': {
-    zoneId: process.env.CLOUDFLARE_ZONE_ID_ANIMAL_PENPALS || '',
+    zoneId: (process.env.CLOUDFLARE_ZONE_ID_ANIMAL_PENPALS ?? '').trim(),
     cdnHost: 'videos.animalpenpals.tech',
   },
   'periodic-table': {
-    zoneId: process.env.CLOUDFLARE_ZONE_ID_PERIODIC_TABLE || '',
+    zoneId: (process.env.CLOUDFLARE_ZONE_ID_PERIODIC_TABLE ?? '').trim(),
     cdnHost: 'videos.periodictable.tech',
   },
   'space-explorer': {
-    zoneId: process.env.CLOUDFLARE_ZONE_ID_SPACE_EXPLORER || '',
+    zoneId: (process.env.CLOUDFLARE_ZONE_ID_SPACE_EXPLORER ?? '').trim(),
     cdnHost: 'assets.spaceexplorer.tech',
   },
 };
@@ -30,6 +30,17 @@ function daysAgoDate(days: number): string {
   return d.toISOString().split('T')[0];
 }
 
+// Cloudflare considers these cache statuses as "cache hits" for billing /
+// analytics purposes. Everything else (miss, expired, dynamic, bypass, none,
+// unknown, ignored) counts as uncached.
+const CACHED_STATUSES = new Set([
+  'hit',
+  'stream_hit',
+  'revalidated',
+  'updating',
+  'stale',
+]);
+
 async function queryGraphQL(query: string, variables: Record<string, unknown>) {
   const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
     method: 'POST',
@@ -43,7 +54,13 @@ async function queryGraphQL(query: string, variables: Record<string, unknown>) {
     const text = await res.text();
     throw new Error(`Cloudflare GraphQL error ${res.status}: ${text}`);
   }
-  return res.json();
+  const body = await res.json();
+  // Cloudflare returns HTTP 200 even for GraphQL errors — surface them
+  // explicitly so they don't get silently swallowed as empty results.
+  if (body?.errors?.length) {
+    console.error('Cloudflare GraphQL errors:', JSON.stringify(body.errors));
+  }
+  return body;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -65,30 +82,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    const isRolling24h = days === 1;
     const since = daysAgoDate(days);
     const until = daysAgoDate(0);
 
-    // Fetch HTTP stats and R2 storage in parallel
-    // Cloudflare GraphQL uses inline filter values, not standard variables
-    const httpQuery = `{
-      viewer {
-        zones(filter: { zoneTag: "${zone.zoneId}" }) {
-          httpRequests1dGroups(
-            filter: { date_geq: "${since}", date_leq: "${until}" }
-            orderBy: [date_ASC]
-            limit: 1000
-          ) {
-            dimensions { date }
-            sum {
-              bytes
-              requests
-              cachedBytes
-              cachedRequests
+    // For days>1: daily rollups via httpRequests1dGroups (legacy, day-level).
+    // For days=1: hourly rollups via httpRequestsAdaptiveGroups, grouped by
+    //   cacheStatus so we can compute cached bytes/requests client-side.
+    const nowIso = new Date().toISOString();
+    const since24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    // Note: httpRequestsAdaptiveGroups uses `count` (group level) for request
+    // count, not `sum.requests`. Byte field is `sum.edgeResponseBytes`.
+    const httpQuery = isRolling24h
+      ? `{
+          viewer {
+            zones(filter: { zoneTag: "${zone.zoneId}" }) {
+              httpRequestsAdaptiveGroups(
+                filter: { datetime_geq: "${since24hIso}", datetime_leq: "${nowIso}" }
+                orderBy: [datetimeHour_ASC]
+                limit: 1000
+              ) {
+                count
+                dimensions { datetimeHour cacheStatus }
+                sum { edgeResponseBytes }
+              }
             }
           }
-        }
-      }
-    }`;
+        }`
+      : `{
+          viewer {
+            zones(filter: { zoneTag: "${zone.zoneId}" }) {
+              httpRequests1dGroups(
+                filter: { date_geq: "${since}", date_leq: "${until}" }
+                orderBy: [date_ASC]
+                limit: 1000
+              ) {
+                dimensions { date }
+                sum {
+                  bytes
+                  requests
+                  cachedBytes
+                  cachedRequests
+                }
+              }
+            }
+          }
+        }`;
 
     const bucketName = R2_BUCKETS[project];
     const yesterday = daysAgoDate(1);
@@ -117,15 +157,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : Promise.resolve(null),
     ]);
 
-      const httpGroups = httpResult?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
+    let timeseries: {
+      date: string;
+      bytes: number;
+      cachedBytes: number;
+      requests: number;
+      cachedRequests: number;
+    }[];
 
-    const timeseries = httpGroups.map((g: any) => ({
-      date: g.dimensions.date.replace(/-/g, ''),
-      bytes: g.sum.bytes,
-      cachedBytes: g.sum.cachedBytes,
-      requests: g.sum.requests,
-      cachedRequests: g.sum.cachedRequests,
-    }));
+    if (isRolling24h) {
+      // Adaptive groups returns one row per (hour, cacheStatus).
+      // Collapse to one entry per hour, splitting cached vs uncached.
+      const adaptiveGroups = httpResult?.data?.viewer?.zones?.[0]?.httpRequestsAdaptiveGroups || [];
+      const byHour = new Map<string, {
+        date: string;
+        bytes: number;
+        cachedBytes: number;
+        requests: number;
+        cachedRequests: number;
+      }>();
+      for (const g of adaptiveGroups) {
+        // datetimeHour looks like "2026-04-08T12:00:00Z"
+        const dh: string = g.dimensions.datetimeHour;
+        const dateKey = `${dh.slice(0, 4)}${dh.slice(5, 7)}${dh.slice(8, 10)}${dh.slice(11, 13)}`;
+        let entry = byHour.get(dateKey);
+        if (!entry) {
+          entry = { date: dateKey, bytes: 0, cachedBytes: 0, requests: 0, cachedRequests: 0 };
+          byHour.set(dateKey, entry);
+        }
+        const bytes = Number(g.sum?.edgeResponseBytes) || 0;
+        const requests = Number(g.count) || 0;
+        entry.bytes += bytes;
+        entry.requests += requests;
+        if (CACHED_STATUSES.has(g.dimensions.cacheStatus)) {
+          entry.cachedBytes += bytes;
+          entry.cachedRequests += requests;
+        }
+      }
+      timeseries = Array.from(byHour.values()).sort((a, b) => a.date.localeCompare(b.date));
+    } else {
+      const httpGroups = httpResult?.data?.viewer?.zones?.[0]?.httpRequests1dGroups || [];
+      timeseries = httpGroups.map((g: any) => ({
+        date: g.dimensions.date.replace(/-/g, ''),
+        bytes: g.sum.bytes,
+        cachedBytes: g.sum.cachedBytes,
+        requests: g.sum.requests,
+        cachedRequests: g.sum.cachedRequests,
+      }));
+    }
 
     const totals = timeseries.reduce(
       (acc: any, d: any) => ({

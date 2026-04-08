@@ -28,7 +28,7 @@ function estimateCost(service: string, model: string | null, tokensIn: number, t
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(process.env.DATABASE_URL!.trim());
     const range = (req.query.range as string) || '30d';
     const days = parseInt(range.replace('d', ''), 10) || 30;
     const project = (req.query.project as string) || 'animal-penpals';
