@@ -63,12 +63,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         property: `properties/${propertyId}`,
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: isRolling24h ? 'dateHour' : 'date' }],
+        // Use engagedSessions (raw count) instead of engagementRate — the
+        // latter returns 0 when grouped by date/dateHour. We compute the
+        // ratio ourselves at aggregation time.
         metrics: [
           { name: 'screenPageViews' },
           { name: 'sessions' },
           { name: 'totalUsers' },
           { name: 'newUsers' },
-          { name: 'engagementRate' },
+          { name: 'engagedSessions' },
           { name: 'averageSessionDuration' },
           { name: 'bounceRate' },
         ],
@@ -93,10 +96,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           { name: 'sessionSource' },
           { name: 'sessionMedium' },
         ],
+        // Note: GA4's `engagementRate` returns 0 when grouped by
+        // sessionSource/sessionMedium. Request `engagedSessions` (a raw
+        // count that works with these dimensions) and compute the ratio
+        // ourselves below.
         metrics: [
           { name: 'sessions' },
           { name: 'totalUsers' },
-          { name: 'engagementRate' },
+          { name: 'engagedSessions' },
           { name: 'averageSessionDuration' },
         ],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
@@ -104,16 +111,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     ]);
 
-    const allPoints = (timeseriesResponse[0].rows || []).map((row) => ({
-      date: row.dimensionValues![0].value!,
-      pageviews: parseInt(row.metricValues![0].value!, 10),
-      sessions: parseInt(row.metricValues![1].value!, 10),
-      users: parseInt(row.metricValues![2].value!, 10),
-      newUsers: parseInt(row.metricValues![3].value!, 10),
-      engagementRate: parseFloat(row.metricValues![4].value!),
-      avgSessionDuration: parseFloat(row.metricValues![5].value!),
-      bounceRate: parseFloat(row.metricValues![6].value!),
-    }));
+    const allPoints = (timeseriesResponse[0].rows || []).map((row) => {
+      const sessions = parseInt(row.metricValues![1].value!, 10);
+      const engagedSessions = parseInt(row.metricValues![4].value!, 10);
+      return {
+        date: row.dimensionValues![0].value!,
+        pageviews: parseInt(row.metricValues![0].value!, 10),
+        sessions,
+        users: parseInt(row.metricValues![2].value!, 10),
+        newUsers: parseInt(row.metricValues![3].value!, 10),
+        engagementRate: sessions > 0 ? engagedSessions / sessions : 0,
+        avgSessionDuration: parseFloat(row.metricValues![5].value!),
+        bounceRate: parseFloat(row.metricValues![6].value!),
+      };
+    });
 
     // For rolling 24h: keep only hours within the last 24h wall-clock window.
     const timeseries = isRolling24h
@@ -129,14 +140,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       sessions: parseInt(row.metricValues![1].value!, 10),
     }));
 
-    const sources = (sourcesResponse[0].rows || []).map((row) => ({
-      source: row.dimensionValues![0].value!,
-      medium: row.dimensionValues![1].value!,
-      sessions: parseInt(row.metricValues![0].value!, 10),
-      users: parseInt(row.metricValues![1].value!, 10),
-      engagementRate: parseFloat(row.metricValues![2].value!),
-      avgSessionDuration: parseFloat(row.metricValues![3].value!),
-    }));
+    const sources = (sourcesResponse[0].rows || []).map((row) => {
+      const sessions = parseInt(row.metricValues![0].value!, 10);
+      const engagedSessions = parseInt(row.metricValues![2].value!, 10);
+      return {
+        source: row.dimensionValues![0].value!,
+        medium: row.dimensionValues![1].value!,
+        sessions,
+        users: parseInt(row.metricValues![1].value!, 10),
+        engagementRate: sessions > 0 ? engagedSessions / sessions : 0,
+        avgSessionDuration: parseFloat(row.metricValues![3].value!),
+      };
+    });
 
     const totalSessions = timeseries.reduce((s, d) => s + d.sessions, 0);
     const totals = {

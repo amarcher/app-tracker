@@ -96,12 +96,14 @@ async function fetchRolling24h(
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: daysAgoDate(2), endDate: 'today' }],
     dimensions: [{ name: 'dateHour' }],
+    // Use engagedSessions rather than engagementRate — GA4 returns 0 for
+    // engagementRate when grouped by dateHour. We compute the ratio below.
     metrics: [
       { name: 'screenPageViews' },
       { name: 'sessions' },
       { name: 'totalUsers' },
       { name: 'newUsers' },
-      { name: 'engagementRate' },
+      { name: 'engagedSessions' },
       { name: 'averageSessionDuration' },
     ],
     orderBys: [{ dimension: { dimensionName: 'dateHour' } }],
@@ -112,9 +114,10 @@ async function fetchRolling24h(
   const nowMs = Date.now();
   const current: ProjectTotals = { ...EMPTY_TOTALS };
   const previous: ProjectTotals = { ...EMPTY_TOTALS };
-  // Weighted accumulators for engagement metrics
-  let curEngSum = 0, curDurSum = 0, curSessWeight = 0;
-  let prevEngSum = 0, prevDurSum = 0, prevSessWeight = 0;
+  // Raw accumulators: sum engagedSessions + sessions across hours, then
+  // divide at the end. Session duration is session-weighted.
+  let curEngaged = 0, curDurSum = 0;
+  let prevEngaged = 0, prevDurSum = 0;
 
   for (const row of response.rows || []) {
     const dh = row.dimensionValues![0].value!; // YYYYMMDDHH in property tz
@@ -126,7 +129,7 @@ async function fetchRolling24h(
     const sessions = parseInt(row.metricValues![1].value!, 10);
     const users = parseInt(row.metricValues![2].value!, 10);
     const newUsers = parseInt(row.metricValues![3].value!, 10);
-    const engRate = parseFloat(row.metricValues![4].value!);
+    const engagedSessions = parseInt(row.metricValues![4].value!, 10);
     const avgDur = parseFloat(row.metricValues![5].value!);
 
     const bucket = ageMs < DAY_MS ? 'current' : 'previous';
@@ -135,24 +138,22 @@ async function fetchRolling24h(
       current.sessions += sessions;
       current.users += users;
       current.newUsers += newUsers;
-      curEngSum += engRate * sessions;
+      curEngaged += engagedSessions;
       curDurSum += avgDur * sessions;
-      curSessWeight += sessions;
     } else {
       previous.pageviews += pageviews;
       previous.sessions += sessions;
       previous.users += users;
       previous.newUsers += newUsers;
-      prevEngSum += engRate * sessions;
+      prevEngaged += engagedSessions;
       prevDurSum += avgDur * sessions;
-      prevSessWeight += sessions;
     }
   }
 
-  current.engagementRate = curSessWeight > 0 ? curEngSum / curSessWeight : 0;
-  current.avgSessionDuration = curSessWeight > 0 ? curDurSum / curSessWeight : 0;
-  previous.engagementRate = prevSessWeight > 0 ? prevEngSum / prevSessWeight : 0;
-  previous.avgSessionDuration = prevSessWeight > 0 ? prevDurSum / prevSessWeight : 0;
+  current.engagementRate = current.sessions > 0 ? curEngaged / current.sessions : 0;
+  current.avgSessionDuration = current.sessions > 0 ? curDurSum / current.sessions : 0;
+  previous.engagementRate = previous.sessions > 0 ? prevEngaged / previous.sessions : 0;
+  previous.avgSessionDuration = previous.sessions > 0 ? prevDurSum / previous.sessions : 0;
 
   return { current, previous };
 }
