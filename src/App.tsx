@@ -19,15 +19,15 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '90d', label: '90 days' },
 ];
 
-const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean }[] = [
-  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true },
-  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true },
-  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true },
-  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true },
+const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean }[] = [
+  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true },
+  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true },
+  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true },
+  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
   { value: 'superbowl-squares', label: 'Superbowl Squares', domain: 'superbowl-squares.com' },
   { value: 'tabbit-rabbit', label: 'Tabbit Rabbit', domain: 'tabbitrabbit.com', hasApiRoutes: true },
-  { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz', hasApiRoutes: true },
+  { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz', hasApiRoutes: true, agents: true },
 ];
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
@@ -52,7 +52,7 @@ function App() {
   const [project, setProject] = useState<string>(HOME_VIEW);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
@@ -350,6 +350,64 @@ function App() {
                 )}
               </div>
               <CdnChart data={cloudflare.timeseries} />
+            </section>
+          )}
+
+          {currentProject?.agents && agentStats && agentStats.hasAgents && (
+            <section className="section">
+              <h2>Conversational AI</h2>
+              <div className="metrics-row">
+                <MetricCard
+                  label="Conversations"
+                  value={agentStats.totals.conversations}
+                  subtitle={agentStats.totals.failed !== undefined
+                    ? `${agentStats.totals.successful ?? 0} ok / ${agentStats.totals.failed} failed`
+                    : ''}
+                />
+                <MetricCard
+                  label="Total Duration"
+                  value={formatDuration(agentStats.totals.totalDurationSecs)}
+                  subtitle={`avg ${formatDuration(agentStats.totals.avgDurationSecs)}`}
+                />
+                <MetricCard label="Messages" value={agentStats.totals.messages} />
+                <MetricCard
+                  label="Success Rate"
+                  value={agentStats.totals.conversations > 0
+                    ? `${(agentStats.totals.successRate * 100).toFixed(0)}%`
+                    : '—'}
+                />
+              </div>
+              {agentStats.recentConversations.length > 0 && (
+                <div className="table-section">
+                  <h3>Recent Conversations</h3>
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Summary</th>
+                          <th>Duration</th>
+                          <th>Messages</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {agentStats.recentConversations.map((c) => (
+                          <tr key={c.conversationId}>
+                            <td className="source-medium">
+                              {new Date(c.startTimeUnix * 1000).toLocaleString()}
+                            </td>
+                            <td className="page-path">{c.summaryTitle ?? '—'}</td>
+                            <td>{formatDuration(c.durationSecs)}</td>
+                            <td>{c.messageCount}</td>
+                            <td>{c.callSuccessful}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </>

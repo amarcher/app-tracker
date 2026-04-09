@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, DateRange } from '../types';
+import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, DateRange } from '../types';
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
 const HOME_VIEW = '__home__';
 
-export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean) {
+export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean, hasAgents?: boolean) {
   const [traffic, setTraffic] = useState<GaTrafficResponse | null>(null);
   const [elevenlabs, setElevenlabs] = useState<ElevenLabsResponse | null>(null);
   const [apiUsage, setApiUsage] = useState<ApiUsageResponse | null>(null);
   const [cloudflare, setCloudflare] = useState<CdnResponse | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [overview, setOverview] = useState<TrafficOverviewResponse | null>(null);
+  const [agentStats, setAgentStats] = useState<AgentStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +34,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setApiUsage(null);
         setCloudflare(null);
         setPortfolio(null);
+        setAgentStats(null);
       } else if (isElevenLabs) {
         const elevenRes = await fetch(`/api/elevenlabs-usage?range=${range}`);
         if (!elevenRes.ok) throw new Error('Failed to fetch ElevenLabs data');
@@ -42,6 +44,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setCloudflare(null);
         setPortfolio(null);
         setOverview(null);
+        setAgentStats(null);
       } else if (isPortfolio) {
         const portfolioRes = await fetch(`/api/portfolio-summary?range=${range}`);
         if (!portfolioRes.ok) throw new Error('Failed to fetch portfolio data');
@@ -51,13 +54,19 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setApiUsage(null);
         setCloudflare(null);
         setOverview(null);
+        setAgentStats(null);
       } else {
         const fetches: Promise<Response>[] = [
           fetch(`/api/ga-traffic?range=${range}&project=${project}`),
           fetch(`/api/api-usage?range=${range}&project=${project}`),
         ];
+        const cfIndex = hasCloudflare ? fetches.length : -1;
         if (hasCloudflare) {
           fetches.push(fetch(`/api/cloudflare-cdn?range=${range}&project=${project}`));
+        }
+        const agentsIndex = hasAgents ? fetches.length : -1;
+        if (hasAgents) {
+          fetches.push(fetch(`/api/elevenlabs-agent-stats?range=${range}&project=${project}`));
         }
 
         const results = await Promise.all(fetches);
@@ -73,14 +82,16 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
           setApiUsage(await apiUsageRes.json());
         }
 
-        if (hasCloudflare && results[2]) {
-          if (results[2].ok) {
-            setCloudflare(await results[2].json());
-          } else {
-            setCloudflare(null);
-          }
+        if (cfIndex >= 0 && results[cfIndex]?.ok) {
+          setCloudflare(await results[cfIndex].json());
         } else {
           setCloudflare(null);
+        }
+
+        if (agentsIndex >= 0 && results[agentsIndex]?.ok) {
+          setAgentStats(await results[agentsIndex].json());
+        } else {
+          setAgentStats(null);
         }
       }
     } catch (err) {
@@ -88,11 +99,11 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
     } finally {
       setLoading(false);
     }
-  }, [range, project, hasCloudflare]);
+  }, [range, project, hasCloudflare, hasAgents]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, loading, error, refetch: fetchData };
+  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, loading, error, refetch: fetchData };
 }

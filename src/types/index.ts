@@ -150,4 +150,28 @@ export interface TrafficOverviewResponse {
   range: string;
 }
 
+export interface AgentStatsConversation {
+  conversationId: string;
+  agentName: string;
+  startTimeUnix: number;
+  durationSecs: number;
+  messageCount: number;
+  callSuccessful: string;
+  summaryTitle: string | null;
+}
+
+export interface AgentStatsResponse {
+  hasAgents: boolean;
+  totals: {
+    conversations: number;
+    totalDurationSecs: number;
+    avgDurationSecs: number;
+    messages: number;
+    successRate: number;
+    successful?: number;
+    failed?: number;
+  };
+  recentConversations: AgentStatsConversation[];
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';
