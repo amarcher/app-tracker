@@ -37,7 +37,14 @@ type CdnMetric = 'bandwidth' | 'requests';
 export function CdnChart({ data }: CdnChartProps) {
   const [metric, setMetric] = useState<CdnMetric>('bandwidth');
 
-  const formatted = data.map((d) => ({
+  // Drop a trailing zero point if the prior point is non-zero — hides the
+  // incomplete "now" bucket that would otherwise crash the line to 0.
+  const valueOf = (d: CdnDataPoint) => (metric === 'bandwidth' ? d.bytes : d.requests);
+  const trimmed = data.length >= 2 && valueOf(data[data.length - 1]) === 0 && valueOf(data[data.length - 2]) !== 0
+    ? data.slice(0, -1)
+    : data;
+
+  const formatted = trimmed.map((d) => ({
     label: formatDate(d.date),
     cached: metric === 'bandwidth' ? d.cachedBytes : d.cachedRequests,
     uncached: metric === 'bandwidth' ? d.bytes - d.cachedBytes : d.requests - d.cachedRequests,

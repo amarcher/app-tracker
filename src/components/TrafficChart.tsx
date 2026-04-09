@@ -32,7 +32,14 @@ const COLORS = {
 };
 
 export function TrafficChart({ data, metric }: TrafficChartProps) {
-  const formatted = data.map((d) => ({ ...d, label: formatDate(d.date) }));
+  // Drop a trailing zero point if the prior point is non-zero — this hides
+  // the incomplete "now" bucket that would otherwise make the line crash to 0.
+  const trimmed = data.length >= 2
+    && data[data.length - 1][metric] === 0
+    && data[data.length - 2][metric] !== 0
+    ? data.slice(0, -1)
+    : data;
+  const formatted = trimmed.map((d) => ({ ...d, label: formatDate(d.date) }));
   const color = COLORS[metric];
 
   return (
