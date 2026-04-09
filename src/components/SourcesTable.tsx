@@ -20,7 +20,6 @@ export function SourcesTable({ data }: SourcesTableProps) {
             <th>Source</th>
             <th>Medium</th>
             <th>Sessions</th>
-            <th>Engaged</th>
             <th>Avg Duration</th>
           </tr>
         </thead>
@@ -30,7 +29,6 @@ export function SourcesTable({ data }: SourcesTableProps) {
               <td>{s.source}</td>
               <td className="source-medium">{s.medium}</td>
               <td>{s.sessions.toLocaleString()}</td>
-              <td>{(s.engagementRate * 100).toFixed(0)}%</td>
               <td className="source-medium">{formatDuration(s.avgSessionDuration)}</td>
             </tr>
           ))}

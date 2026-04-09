@@ -150,7 +150,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         users: parseInt(row.metricValues![1].value!, 10),
         engagementRate: sessions > 0 ? engagedSessions / sessions : 0,
         avgSessionDuration: parseFloat(row.metricValues![3].value!),
-        _debugRawMetrics: row.metricValues!.map(m => m.value),
       };
     });
 

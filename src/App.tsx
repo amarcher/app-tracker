@@ -229,8 +229,7 @@ function App() {
                   <MetricCard label="Sessions" value={traffic.totals.sessions} />
                   <MetricCard label="Users" value={traffic.totals.users}
                     subtitle={`${traffic.totals.newUsers} new`} />
-                  <MetricCard label="Engagement" value={`${(traffic.totals.engagementRate * 100).toFixed(0)}%`}
-                    subtitle={formatDuration(traffic.totals.avgSessionDuration)} />
+                  <MetricCard label="Avg Duration" value={formatDuration(traffic.totals.avgSessionDuration)} />
                   <MetricCard label="Bounce Rate" value={`${(traffic.totals.bounceRate * 100).toFixed(0)}%`} />
                 </div>
                 <div className="chart-header">
