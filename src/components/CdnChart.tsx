@@ -37,11 +37,11 @@ type CdnMetric = 'bandwidth' | 'requests';
 export function CdnChart({ data }: CdnChartProps) {
   const [metric, setMetric] = useState<CdnMetric>('requests');
 
-  // Drop trailing zero points — hides the incomplete "now" bucket (and any
-  // prior empty buckets) so the chart ends on real data. If the entire
-  // series is zero, keep it as-is (that's a meaningful "no traffic" state).
+  // Always drop the last bucket (current hour or day is still in progress),
+  // then loop-trim any additional trailing zeros. If the whole series is
+  // <= 1 point or all zeros, keep it as-is.
   const valueOf = (d: CdnDataPoint) => (metric === 'bandwidth' ? d.bytes : d.requests);
-  let end = data.length;
+  let end = data.length > 1 ? data.length - 1 : data.length;
   while (end > 1 && valueOf(data[end - 1]) === 0) end--;
   const trimmed = end >= 2 ? data.slice(0, end) : data;
 
