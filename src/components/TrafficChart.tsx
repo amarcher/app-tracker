@@ -32,13 +32,11 @@ const COLORS = {
 };
 
 export function TrafficChart({ data, metric }: TrafficChartProps) {
-  // Drop a trailing zero point if the prior point is non-zero — this hides
-  // the incomplete "now" bucket that would otherwise make the line crash to 0.
-  const trimmed = data.length >= 2
-    && data[data.length - 1][metric] === 0
-    && data[data.length - 2][metric] !== 0
-    ? data.slice(0, -1)
-    : data;
+  // Drop trailing zero points so the chart ends on real data instead of the
+  // incomplete "now" bucket. Keep the whole series if every point is zero.
+  let end = data.length;
+  while (end > 1 && data[end - 1][metric] === 0) end--;
+  const trimmed = end >= 2 ? data.slice(0, end) : data;
   const formatted = trimmed.map((d) => ({ ...d, label: formatDate(d.date) }));
   const color = COLORS[metric];
 
