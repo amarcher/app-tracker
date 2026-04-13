@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, DateRange } from '../types';
+import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, PosthogResponse, DateRange } from '../types';
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
 const HOME_VIEW = '__home__';
 
-export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean, hasAgents?: boolean) {
+export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean, hasAgents?: boolean, hasPosthog?: boolean) {
   const [traffic, setTraffic] = useState<GaTrafficResponse | null>(null);
   const [elevenlabs, setElevenlabs] = useState<ElevenLabsResponse | null>(null);
   const [apiUsage, setApiUsage] = useState<ApiUsageResponse | null>(null);
@@ -13,6 +13,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [overview, setOverview] = useState<TrafficOverviewResponse | null>(null);
   const [agentStats, setAgentStats] = useState<AgentStatsResponse | null>(null);
+  const [posthog, setPosthog] = useState<PosthogResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +36,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setCloudflare(null);
         setPortfolio(null);
         setAgentStats(null);
+        setPosthog(null);
       } else if (isElevenLabs) {
         const elevenRes = await fetch(`/api/elevenlabs-usage?range=${range}`);
         if (!elevenRes.ok) throw new Error('Failed to fetch ElevenLabs data');
@@ -45,6 +47,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setPortfolio(null);
         setOverview(null);
         setAgentStats(null);
+        setPosthog(null);
       } else if (isPortfolio) {
         const portfolioRes = await fetch(`/api/portfolio-summary?range=${range}`);
         if (!portfolioRes.ok) throw new Error('Failed to fetch portfolio data');
@@ -55,6 +58,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setCloudflare(null);
         setOverview(null);
         setAgentStats(null);
+        setPosthog(null);
       } else {
         const fetches: Promise<Response>[] = [
           fetch(`/api/ga-traffic?range=${range}&project=${project}`),
@@ -67,6 +71,10 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         const agentsIndex = hasAgents ? fetches.length : -1;
         if (hasAgents) {
           fetches.push(fetch(`/api/elevenlabs-agent-stats?range=${range}&project=${project}`));
+        }
+        const posthogIndex = hasPosthog ? fetches.length : -1;
+        if (hasPosthog) {
+          fetches.push(fetch(`/api/posthog-events?range=${range}&project=${project}`));
         }
 
         const results = await Promise.all(fetches);
@@ -93,17 +101,23 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         } else {
           setAgentStats(null);
         }
+
+        if (posthogIndex >= 0 && results[posthogIndex]?.ok) {
+          setPosthog(await results[posthogIndex].json());
+        } else {
+          setPosthog(null);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [range, project, hasCloudflare, hasAgents]);
+  }, [range, project, hasCloudflare, hasAgents, hasPosthog]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, loading, error, refetch: fetchData };
+  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, loading, error, refetch: fetchData };
 }

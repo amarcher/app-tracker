@@ -174,4 +174,30 @@ export interface AgentStatsResponse {
   recentConversations: AgentStatsConversation[];
 }
 
+export interface PosthogEventTotal {
+  event: string;
+  label: string;
+  count: number;
+}
+
+export interface PosthogTimeseriesPoint {
+  date: string;
+  planet_viewed: number;
+  moon_viewed: number;
+  sun_viewed: number;
+  voice_agent_activated: number;
+  exploration_milestone: number;
+}
+
+export interface PosthogTopItem {
+  name: string;
+  count: number;
+}
+
+export interface PosthogResponse {
+  totals: PosthogEventTotal[];
+  timeseries: PosthogTimeseriesPoint[];
+  topPlanets: PosthogTopItem[];
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';
