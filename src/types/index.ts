@@ -182,11 +182,7 @@ export interface PosthogEventTotal {
 
 export interface PosthogTimeseriesPoint {
   date: string;
-  planet_viewed: number;
-  moon_viewed: number;
-  sun_viewed: number;
-  voice_agent_activated: number;
-  exploration_milestone: number;
+  [event: string]: string | number;
 }
 
 export interface PosthogTopItem {
@@ -197,7 +193,7 @@ export interface PosthogTopItem {
 export interface PosthogResponse {
   totals: PosthogEventTotal[];
   timeseries: PosthogTimeseriesPoint[];
-  topPlanets: PosthogTopItem[];
+  topItems: PosthogTopItem[];
 }
 
 export type DateRange = '1d' | '7d' | '30d' | '90d';

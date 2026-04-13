@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { PosthogTimeseriesPoint } from '../types';
+import type { PosthogTimeseriesPoint, PosthogEventTotal } from '../types';
 
 function formatDate(dateStr: string): string {
   if (dateStr.length === 10) {
@@ -19,27 +19,30 @@ function formatDate(dateStr: string): string {
   return `${m}/${d}`;
 }
 
-const SERIES = [
-  { key: 'planet_viewed', label: 'Planets', color: '#6366f1' },
-  { key: 'moon_viewed', label: 'Moons', color: '#8b5cf6' },
-  { key: 'sun_viewed', label: 'Sun', color: '#f59e0b' },
-  { key: 'voice_agent_activated', label: 'Voice Agent', color: '#10b981' },
-  { key: 'exploration_milestone', label: 'Milestones', color: '#06b6d4' },
-] as const;
+const PALETTE = [
+  '#6366f1', '#8b5cf6', '#f59e0b', '#10b981', '#06b6d4',
+  '#ec4899', '#f97316', '#14b8a6',
+];
 
 interface PosthogChartProps {
   data: PosthogTimeseriesPoint[];
+  totals: PosthogEventTotal[];
 }
 
-export function PosthogChart({ data }: PosthogChartProps) {
+export function PosthogChart({ data, totals }: PosthogChartProps) {
   const formatted = data.map((d) => ({ ...d, label: formatDate(d.date) }));
+  const series = totals.map((t, i) => ({
+    key: t.event,
+    label: t.label,
+    color: PALETTE[i % PALETTE.length],
+  }));
 
   return (
     <div className="chart-container">
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={formatted} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
-            {SERIES.map((s) => (
+            {series.map((s) => (
               <linearGradient key={s.key} id={`gradient-ph-${s.key}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
                 <stop offset="95%" stopColor={s.color} stopOpacity={0} />
@@ -58,7 +61,7 @@ export function PosthogChart({ data }: PosthogChartProps) {
             }}
           />
           <Legend />
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <Area
               key={s.key}
               type="monotone"
