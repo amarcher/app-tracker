@@ -9,6 +9,7 @@ import { QuotaBar } from './components/QuotaBar';
 import { ProductBreakdown } from './components/ProductBreakdown';
 import { CdnChart, formatBytes } from './components/CdnChart';
 import { HomeOverview } from './components/HomeOverview';
+import { PosthogChart } from './components/PosthogChart';
 import type { DateRange } from './types';
 import './App.css';
 
@@ -19,9 +20,9 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '90d', label: '90 days' },
 ];
 
-const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean }[] = [
+const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean }[] = [
   { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true },
-  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true },
+  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
@@ -52,7 +53,7 @@ function App() {
   const [project, setProject] = useState<string>(HOME_VIEW);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
@@ -401,6 +402,41 @@ function App() {
                             <td>{formatDuration(c.durationSecs)}</td>
                             <td>{c.messageCount}</td>
                             <td>{c.callSuccessful}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {currentProject?.posthog && posthog && posthog.totals.length > 0 && (
+            <section className="section">
+              <h2>Product Analytics</h2>
+              <div className="metrics-row">
+                {posthog.totals.map((t) => (
+                  <MetricCard key={t.event} label={t.label} value={t.count} />
+                ))}
+              </div>
+              <PosthogChart data={posthog.timeseries} />
+              {posthog.topPlanets.length > 0 && (
+                <div className="table-section">
+                  <h3>Most Viewed Planets</h3>
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Planet</th>
+                          <th>Views</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {posthog.topPlanets.map((p) => (
+                          <tr key={p.name}>
+                            <td>{p.name}</td>
+                            <td>{p.count.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
