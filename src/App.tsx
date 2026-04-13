@@ -21,9 +21,9 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
 ];
 
 const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean }[] = [
-  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true },
+  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true, posthog: true },
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true },
+  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true, posthog: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
   { value: 'superbowl-squares', label: 'Superbowl Squares', domain: 'superbowl-squares.com' },
@@ -420,20 +420,20 @@ function App() {
                   <MetricCard key={t.event} label={t.label} value={t.count} />
                 ))}
               </div>
-              <PosthogChart data={posthog.timeseries} />
-              {posthog.topPlanets.length > 0 && (
+              <PosthogChart data={posthog.timeseries} totals={posthog.totals} />
+              {posthog.topItems.length > 0 && (
                 <div className="table-section">
-                  <h3>Most Viewed Planets</h3>
+                  <h3>Most Popular</h3>
                   <div className="table-container">
                     <table>
                       <thead>
                         <tr>
-                          <th>Planet</th>
-                          <th>Views</th>
+                          <th>Name</th>
+                          <th>Count</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {posthog.topPlanets.map((p) => (
+                        {posthog.topItems.map((p) => (
                           <tr key={p.name}>
                             <td>{p.name}</td>
                             <td>{p.count.toLocaleString()}</td>
