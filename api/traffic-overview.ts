@@ -13,6 +13,7 @@ const PROPERTIES: Record<string, string> = {
   'superbowl-squares': env('GA4_PROPERTY_ID_SUPERBOWL_SQUARES'),
   'tabbit-rabbit': env('GA4_PROPERTY_ID_TABBIT_RABBIT'),
   'mark-my-words': env('GA4_PROPERTY_ID_MARK_MY_WORDS'),
+  'mtg-dash': env('GA4_PROPERTY_ID_MTG_DASH'),
 };
 
 function getClient() {
