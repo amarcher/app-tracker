@@ -14,6 +14,7 @@ const PROPERTIES: Record<string, string> = {
   'tabbit-rabbit': env('GA4_PROPERTY_ID_TABBIT_RABBIT'),
   'mark-my-words': env('GA4_PROPERTY_ID_MARK_MY_WORDS'),
   'mtg-dash': env('GA4_PROPERTY_ID_MTG_DASH'),
+  'recipe-guide': env('GA4_PROPERTY_ID_RECIPE_GUIDE'),
 };
 
 function getClient() {
