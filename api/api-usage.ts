@@ -6,6 +6,7 @@ const PRICING: Record<string, { inputPerM: number; outputPerM: number; charsPerM
   // Anthropic
   'claude-sonnet-4-20250514': { inputPerM: 3, outputPerM: 15 },
   'claude-haiku-4-5-20251001': { inputPerM: 0.80, outputPerM: 4 },
+  'claude-opus-4-7': { inputPerM: 15, outputPerM: 75 },
   // OpenAI
   'gpt-4o': { inputPerM: 2.50, outputPerM: 10 },
   'gpt-4o-mini': { inputPerM: 0.15, outputPerM: 0.60 },

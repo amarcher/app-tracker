@@ -5,6 +5,7 @@ import { neon } from '@neondatabase/serverless';
 const PRICING: Record<string, { inputPerM: number; outputPerM: number }> = {
   'claude-sonnet-4-20250514': { inputPerM: 3, outputPerM: 15 },
   'claude-haiku-4-5-20251001': { inputPerM: 0.80, outputPerM: 4 },
+  'claude-opus-4-7': { inputPerM: 15, outputPerM: 75 },
 };
 const ELEVENLABS_CHARS_PER_M = 0.30;
 
