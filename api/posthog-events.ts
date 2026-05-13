@@ -140,7 +140,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       count: (series.data as number[]).reduce((a: number, b: number) => a + b, 0),
     }));
 
-    const timeseriesMap = new Map<string, Record<string, number>>();
+    type TimeseriesEntry = { date: string; [event: string]: string | number };
+    const timeseriesMap = new Map<string, TimeseriesEntry>();
     for (let i = 0; i < results.length; i++) {
       const eventName = eventNames[i];
       const series = results[i];
@@ -153,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           entry = { date: dateKey };
           timeseriesMap.set(dateKey, entry);
         }
-        entry[eventName] = (entry[eventName] || 0) + (data[j] || 0);
+        entry[eventName] = (Number(entry[eventName]) || 0) + (data[j] || 0);
       }
     }
     const timeseries = Array.from(timeseriesMap.values()).sort((a, b) =>
