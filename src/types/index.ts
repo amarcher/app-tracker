@@ -196,4 +196,64 @@ export interface PosthogResponse {
   topItems: PosthogTopItem[];
 }
 
+export interface SearchConsoleMetric {
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface SearchConsoleQuery extends SearchConsoleMetric {
+  query: string;
+}
+
+export interface SearchConsolePage extends SearchConsoleMetric {
+  page: string;
+}
+
+export interface SearchConsoleOpportunity extends SearchConsoleMetric {
+  type: 'striking-distance' | 'low-ctr';
+  label: string;
+  detail: string;
+}
+
+export interface SearchConsoleResponse {
+  connected: boolean;
+  setupError?: string;
+  siteUrl: string | null;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  totals: SearchConsoleMetric;
+  queries: SearchConsoleQuery[];
+  pages: SearchConsolePage[];
+  timeseries?: Array<{ date: string } & SearchConsoleMetric>;
+  opportunities: SearchConsoleOpportunity[];
+}
+
+export interface SearchConsoleProjectStatus {
+  project: string;
+  domain: string;
+  status: 'active' | 'connected-no-data' | 'missing-property' | 'query-error';
+  siteUrl: string | null;
+  permissionLevel?: string;
+  clicks: number;
+  impressions: number;
+  error?: string;
+}
+
+export interface SearchConsoleSitesResponse {
+  setupError?: string;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  sites: Array<{
+    siteUrl: string;
+    permissionLevel?: string;
+  }>;
+  projects: SearchConsoleProjectStatus[];
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';

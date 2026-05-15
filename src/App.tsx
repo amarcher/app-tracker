@@ -10,6 +10,8 @@ import { ProductBreakdown } from './components/ProductBreakdown';
 import { CdnChart, formatBytes } from './components/CdnChart';
 import { HomeOverview } from './components/HomeOverview';
 import { PosthogChart } from './components/PosthogChart';
+import { SearchConsolePanel } from './components/SearchConsolePanel';
+import { SearchConsoleSurvey } from './components/SearchConsoleSurvey';
 import type { DateRange } from './types';
 import './App.css';
 
@@ -55,7 +57,7 @@ function App() {
   const [project, setProject] = useState<string>(HOME_VIEW);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
@@ -111,11 +113,17 @@ function App() {
 
       {isHomeView ? (
         overview ? (
-          <HomeOverview
-            data={overview}
-            projectLabels={projectLabels}
-            onSelectProject={setProject}
-          />
+          <>
+            <HomeOverview
+              data={overview}
+              projectLabels={projectLabels}
+              onSelectProject={setProject}
+            />
+            <SearchConsoleSurvey
+              data={searchConsoleSites}
+              projectLabels={projectLabels}
+            />
+          </>
         ) : (
           <section className="section">
             <div className="loading">{loading ? 'Loading overview...' : 'No data.'}</div>
@@ -263,6 +271,11 @@ function App() {
               </>
             )}
             {loading && !traffic && <div className="loading">Loading traffic data...</div>}
+          </section>
+
+          <section className="section">
+            <h2>Search Console</h2>
+            <SearchConsolePanel data={searchConsole} />
           </section>
 
           <section className="section">

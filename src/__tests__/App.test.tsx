@@ -1,8 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import App from '../App';
 
 describe('App', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ projects: [], range: '1d' }),
+    })));
+  });
+
   it('renders the project selector with all projects', () => {
     render(<App />);
     expect(screen.getByText('Animal Pen Pals')).toBeDefined();
@@ -38,7 +45,9 @@ describe('App', () => {
 
   it('renders Traffic and API Usage section headers', () => {
     render(<App />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'animal-penpals' } });
     expect(screen.getByText('Traffic')).toBeDefined();
+    expect(screen.getByText('Search Console')).toBeDefined();
     expect(screen.getByText('API Usage')).toBeDefined();
   });
 });
