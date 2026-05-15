@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, PosthogResponse, DateRange } from '../types';
+import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, PosthogResponse, SearchConsoleResponse, SearchConsoleSitesResponse, DateRange } from '../types';
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
@@ -14,6 +14,8 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
   const [overview, setOverview] = useState<TrafficOverviewResponse | null>(null);
   const [agentStats, setAgentStats] = useState<AgentStatsResponse | null>(null);
   const [posthog, setPosthog] = useState<PosthogResponse | null>(null);
+  const [searchConsole, setSearchConsole] = useState<SearchConsoleResponse | null>(null);
+  const [searchConsoleSites, setSearchConsoleSites] = useState<SearchConsoleSitesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +39,9 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setPortfolio(null);
         setAgentStats(null);
         setPosthog(null);
+        setSearchConsole(null);
+        const surveyRes = await fetch('/api/search-console-sites');
+        setSearchConsoleSites(surveyRes.ok ? await surveyRes.json() : null);
       } else if (isElevenLabs) {
         const elevenRes = await fetch(`/api/elevenlabs-usage?range=${range}`);
         if (!elevenRes.ok) throw new Error('Failed to fetch ElevenLabs data');
@@ -48,6 +53,8 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setOverview(null);
         setAgentStats(null);
         setPosthog(null);
+        setSearchConsole(null);
+        setSearchConsoleSites(null);
       } else if (isPortfolio) {
         const portfolioRes = await fetch(`/api/portfolio-summary?range=${range}`);
         if (!portfolioRes.ok) throw new Error('Failed to fetch portfolio data');
@@ -59,11 +66,15 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setOverview(null);
         setAgentStats(null);
         setPosthog(null);
+        setSearchConsole(null);
+        setSearchConsoleSites(null);
       } else {
         const fetches: Promise<Response>[] = [
           fetch(`/api/ga-traffic?range=${range}&project=${project}`),
           fetch(`/api/api-usage?range=${range}&project=${project}`),
+          fetch(`/api/search-console?range=${range}&project=${project}`),
         ];
+        const searchConsoleIndex = 2;
         const cfIndex = hasCloudflare ? fetches.length : -1;
         if (hasCloudflare) {
           fetches.push(fetch(`/api/cloudflare-cdn?range=${range}&project=${project}`));
@@ -85,9 +96,16 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setElevenlabs(null);
         setPortfolio(null);
         setOverview(null);
+        setSearchConsoleSites(null);
 
         if (apiUsageRes.ok) {
           setApiUsage(await apiUsageRes.json());
+        }
+
+        if (results[searchConsoleIndex]?.ok) {
+          setSearchConsole(await results[searchConsoleIndex].json());
+        } else {
+          setSearchConsole(null);
         }
 
         if (cfIndex >= 0 && results[cfIndex]?.ok) {
@@ -119,5 +137,5 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
     fetchData();
   }, [fetchData]);
 
-  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, loading, error, refetch: fetchData };
+  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, loading, error, refetch: fetchData };
 }
