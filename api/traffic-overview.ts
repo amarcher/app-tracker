@@ -7,6 +7,7 @@ const env = (name: string) => (process.env[name] ?? '').trim();
 const PROPERTIES: Record<string, string> = {
   'animal-penpals': env('GA4_PROPERTY_ID'),
   'space-explorer': env('GA4_PROPERTY_ID_SPACE_EXPLORER'),
+  'space-race': env('GA4_PROPERTY_ID_SPACE_RACE'),
   'periodic-table': env('GA4_PROPERTY_ID_PERIODIC_TABLE'),
   'crossword-clash': env('GA4_PROPERTY_ID_CROSSWORD_CLASH'),
   'ticket-for-dinner': env('GA4_PROPERTY_ID_TICKET_FOR_DINNER'),
