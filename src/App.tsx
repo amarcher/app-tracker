@@ -25,7 +25,7 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
 const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean }[] = [
   { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true, posthog: true },
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'space-race', label: '1000 Light-Years', domain: 'game.spaceexplorer.tech' },
+  { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech' },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true, posthog: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
