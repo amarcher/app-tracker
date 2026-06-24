@@ -5,6 +5,7 @@ const env = (name: string) => (process.env[name] ?? '').trim();
 export const PROJECT_DOMAINS: Record<string, string> = {
   'animal-penpals': 'animalpenpals.tech',
   'space-explorer': 'spaceexplorer.tech',
+  'space-race': 'game.spaceexplorer.tech',
   'periodic-table': 'periodictable.tech',
   'crossword-clash': 'crosswordclash.com',
   'ticket-for-dinner': 'ticketfordinner.com',
@@ -18,6 +19,7 @@ export const PROJECT_DOMAINS: Record<string, string> = {
 const SITE_URL_ENV: Record<string, string> = {
   'animal-penpals': env('GSC_SITE_URL_ANIMAL_PENPALS'),
   'space-explorer': env('GSC_SITE_URL_SPACE_EXPLORER'),
+  'space-race': env('GSC_SITE_URL_SPACE_RACE'),
   'periodic-table': env('GSC_SITE_URL_PERIODIC_TABLE'),
   'crossword-clash': env('GSC_SITE_URL_CROSSWORD_CLASH'),
   'ticket-for-dinner': env('GSC_SITE_URL_TICKET_FOR_DINNER'),
