@@ -1,42 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import { parseDateHour, tzForProject } from './_shared/timezone.js';
-
-const env = (name: string) => (process.env[name] ?? '').trim();
-
-const PROPERTIES: Record<string, string> = {
-  'animal-penpals': env('GA4_PROPERTY_ID'),
-  'space-explorer': env('GA4_PROPERTY_ID_SPACE_EXPLORER'),
-  'space-race': env('GA4_PROPERTY_ID_SPACE_RACE'),
-  'periodic-table': env('GA4_PROPERTY_ID_PERIODIC_TABLE'),
-  'crossword-clash': env('GA4_PROPERTY_ID_CROSSWORD_CLASH'),
-  'ticket-for-dinner': env('GA4_PROPERTY_ID_TICKET_FOR_DINNER'),
-  'superbowl-squares': env('GA4_PROPERTY_ID_SUPERBOWL_SQUARES'),
-  'tabbit-rabbit': env('GA4_PROPERTY_ID_TABBIT_RABBIT'),
-  'mark-my-words': env('GA4_PROPERTY_ID_MARK_MY_WORDS'),
-  'mtg-dash': env('GA4_PROPERTY_ID_MTG_DASH'),
-  'recipe-guide': env('GA4_PROPERTY_ID_RECIPE_GUIDE'),
-  'fable-designer': env('GA4_PROPERTY_ID_FABLE_DESIGNER'),
-};
-
-function getClient() {
-  const keyJson = env('GA4_KEY_JSON');
-  if (keyJson) {
-    const credentials = JSON.parse(keyJson);
-    return new BetaAnalyticsDataClient({ credentials });
-  }
-  const keyFile = env('GOOGLE_APPLICATION_CREDENTIALS');
-  if (keyFile) {
-    return new BetaAnalyticsDataClient({ keyFilename: keyFile });
-  }
-  return new BetaAnalyticsDataClient();
-}
-
-function daysAgoDate(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().split('T')[0];
-}
+import {
+  GA4_PROPERTIES as PROPERTIES,
+  getGa4Client as getClient,
+  daysAgoDate,
+} from './_shared/ga4.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
