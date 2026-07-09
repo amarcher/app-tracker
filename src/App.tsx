@@ -34,6 +34,7 @@ const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boo
   { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz', hasApiRoutes: true, agents: true },
   { value: 'mtg-dash', label: 'MTG Dash', domain: 'mtg.capxun.com', cloudflare: true },
   { value: 'recipe-guide', label: 'Recipe Guide', domain: 'mised.tech', hasApiRoutes: true },
+  { value: 'fable-designer', label: 'Fable Designer', domain: 'fabledesigner.com' },
 ];
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
