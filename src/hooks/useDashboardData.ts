@@ -41,7 +41,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setAgentStats(null);
         setPosthog(null);
         setSearchConsole(null);
-        const surveyRes = await fetch('/api/search-console-sites');
+        const surveyRes = await fetch(`/api/search-console-sites?range=${range}`);
         setSearchConsoleSites(surveyRes.ok ? await surveyRes.json() : null);
       } else if (isElevenLabs) {
         const elevenRes = await fetch(`/api/elevenlabs-usage?range=${range}`);

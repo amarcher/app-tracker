@@ -7,8 +7,10 @@ import {
   querySearchAnalytics,
 } from './_shared/search-console.js';
 
-export default async function handler(_req: VercelRequest, res: VercelResponse) {
-  const { startDate, endDate } = dateRangeForSearchConsole(30);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const range = (req.query.range as string) || '30d';
+  const days = parseInt(range.replace('d', ''), 10) || 30;
+  const { startDate, endDate } = dateRangeForSearchConsole(days);
   try {
     const sites = await listSearchConsoleSites();
 
