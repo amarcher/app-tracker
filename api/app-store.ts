@@ -140,11 +140,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const token = makeAscToken(keyId, issuerId, privateKey);
+    // Sales and Trends needs a key with the Sales/Finance/Admin role, which the
+    // main (App Manager) key may lack — allow a dedicated key pair for it.
+    const salesKeyId = process.env.ASC_SALES_KEY_ID;
+    const salesPrivateKey = process.env.ASC_SALES_PRIVATE_KEY;
+    const salesToken = salesKeyId && salesPrivateKey ? makeAscToken(salesKeyId, issuerId, salesPrivateKey) : token;
     const [itunes, reviews, downloads] = await Promise.all([
       fetchItunesLookup(appId),
       fetchReviews(appId, token),
       vendorNumber
-        ? fetchDailyUnits(appId, vendorNumber, token, days).catch((err) => ({
+        ? fetchDailyUnits(appId, vendorNumber, salesToken, days).catch((err) => ({
             available: false as const,
             reason: String(err?.message ?? err),
           }))
