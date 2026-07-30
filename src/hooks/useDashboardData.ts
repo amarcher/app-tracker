@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, PosthogResponse, SearchConsoleResponse, SearchConsoleSitesResponse, DateRange } from '../types';
+import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, PosthogResponse, SearchConsoleResponse, SearchConsoleSitesResponse, AppStoreResponse, DateRange } from '../types';
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
 const HOME_VIEW = '__home__';
 
-export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean, hasAgents?: boolean, hasPosthog?: boolean) {
+export function useDashboardData(range: DateRange, project: string, hasCloudflare?: boolean, hasAgents?: boolean, hasPosthog?: boolean, hasAppStore?: boolean) {
   const [traffic, setTraffic] = useState<GaTrafficResponse | null>(null);
   const [elevenlabs, setElevenlabs] = useState<ElevenLabsResponse | null>(null);
   const [apiUsage, setApiUsage] = useState<ApiUsageResponse | null>(null);
@@ -16,6 +16,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
   const [posthog, setPosthog] = useState<PosthogResponse | null>(null);
   const [searchConsole, setSearchConsole] = useState<SearchConsoleResponse | null>(null);
   const [searchConsoleSites, setSearchConsoleSites] = useState<SearchConsoleSitesResponse | null>(null);
+  const [appStore, setAppStore] = useState<AppStoreResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,6 +88,10 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         if (hasPosthog) {
           fetches.push(fetch(`/api/posthog-events?range=${range}&project=${project}`));
         }
+        const appStoreIndex = hasAppStore ? fetches.length : -1;
+        if (hasAppStore) {
+          fetches.push(fetch(`/api/app-store?range=${range}&project=${project}`));
+        }
 
         const results = await Promise.all(fetches);
         const [trafficRes, apiUsageRes] = results;
@@ -125,17 +130,23 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         } else {
           setPosthog(null);
         }
+
+        if (appStoreIndex >= 0 && results[appStoreIndex]?.ok) {
+          setAppStore(await results[appStoreIndex].json());
+        } else {
+          setAppStore(null);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [range, project, hasCloudflare, hasAgents, hasPosthog]);
+  }, [range, project, hasCloudflare, hasAgents, hasPosthog, hasAppStore]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, loading, error, refetch: fetchData };
+  return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, appStore, loading, error, refetch: fetchData };
 }

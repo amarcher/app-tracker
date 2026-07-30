@@ -11,6 +11,7 @@ import { CdnChart, formatBytes } from './components/CdnChart';
 import { HomeOverview } from './components/HomeOverview';
 import { PosthogChart } from './components/PosthogChart';
 import { SearchConsolePanel } from './components/SearchConsolePanel';
+import { AppStorePanel } from './components/AppStorePanel';
 import { SearchConsoleSurvey } from './components/SearchConsoleSurvey';
 import type { DateRange } from './types';
 import './App.css';
@@ -22,10 +23,10 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '90d', label: '90 days' },
 ];
 
-const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean }[] = [
+const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean; appStore?: boolean }[] = [
   { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true, posthog: true },
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech' },
+  { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech', appStore: true },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true, posthog: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
@@ -59,7 +60,7 @@ function App() {
   const [project, setProject] = useState<string>(HOME_VIEW);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, appStore, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog, currentProject?.appStore);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
@@ -279,6 +280,14 @@ function App() {
             <h2>Search Console</h2>
             <SearchConsolePanel data={searchConsole} />
           </section>
+
+          {currentProject?.appStore && (
+            <section className="section">
+              <h2>App Store</h2>
+              <AppStorePanel data={appStore} />
+              {loading && !appStore && <div className="loading">Loading App Store data...</div>}
+            </section>
+          )}
 
           <section className="section">
             <h2>API Usage</h2>

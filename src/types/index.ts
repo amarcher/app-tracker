@@ -256,4 +256,38 @@ export interface SearchConsoleSitesResponse {
   projects: SearchConsoleProjectStatus[];
 }
 
+export interface AppStoreReview {
+  rating: number;
+  title: string;
+  body: string;
+  reviewer: string;
+  date: string;
+  territory: string;
+}
+
+export interface AppStoreDownloadDay {
+  date: string;
+  downloads: number;
+  updates: number;
+  redownloads: number;
+}
+
+export interface AppStoreResponse {
+  connected: boolean;
+  reason?: string;
+  app: {
+    name: string;
+    version: string;
+    releaseDate: string;
+    currentVersionReleaseDate: string;
+    minimumOsVersion: string;
+    rating: { average: number | null; count: number };
+    url: string;
+  } | null;
+  reviews: AppStoreReview[];
+  downloads:
+    | { available: true; timeseries: AppStoreDownloadDay[]; totals: { downloads: number; updates: number; redownloads: number } }
+    | { available: false; reason: string };
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';

@@ -24,6 +24,8 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 
 4. **Cloudflare GraphQL Analytics API** — Per-project CDN stats for projects using Cloudflare (R2 video hosting). Shows bandwidth, cache hit ratio, requests (cached vs uncached), and R2 storage. Each project maps to a Cloudflare Zone ID. Only shown for projects with `cloudflare: true` in the PROJECTS config.
 
+5. **App Store Connect API + iTunes lookup** — iOS app stats for projects with `appStore: true` (currently Space Race). Public iTunes lookup provides rating/version with no auth; the ASC API (ES256 JWT from `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_PRIVATE_KEY`) provides customer reviews; daily download units come from the Sales Reports API and additionally require `ASC_VENDOR_NUMBER`. Each capability degrades gracefully when its env vars are missing. Note: sales/analytics report access depends on the API key's role — App Manager keys can read reviews but may not have Sales and Trends access.
+
 ### API Routes (`api/`)
 
 - `ga-traffic.ts` — Queries GA4 Data API. Accepts `?project=` to select the GA4 property. Property IDs are mapped from env vars in the `PROPERTIES` object. Returns engagement metrics (engagement rate, avg session duration, bounce rate, new vs returning users) alongside traffic.
@@ -31,6 +33,7 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 - `elevenlabs-usage.ts` — Queries ElevenLabs usage stats and subscription info. Account-wide, not project-specific.
 - `api-usage.ts` — Queries Neon Postgres for self-instrumented usage data. Accepts `?project=` to filter.
 - `cloudflare-cdn.ts` — Queries Cloudflare GraphQL API for HTTP request stats (`httpRequests1dGroups`) and R2 storage (`r2StorageAdaptiveGroups`). Accepts `?project=` to select the zone. Zone IDs mapped from env vars. Only returns data for projects with Cloudflare zones configured.
+- `app-store.ts` — App Store stats (rating, version, reviews, daily downloads) for projects in its `APPS` map. Accepts `?project=`. See data source #5 for the env vars each capability needs.
 
 ### Frontend
 
