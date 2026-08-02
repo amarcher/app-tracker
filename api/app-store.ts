@@ -113,6 +113,132 @@ async function fetchDailyUnits(appId: string, vendorNumber: string, token: strin
   return { available: true as const, timeseries: perDay, totals };
 }
 
+const ASC_BASE = 'https://api.appstoreconnect.apple.com';
+
+async function ascGet(path: string, token: string): Promise<any> {
+  const res = await fetch(`${ASC_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`${path.split('?')[0]} → ${res.status}`);
+  return res.json();
+}
+
+// Analytics report files are gzipped and tab-separated (despite the .csv.gz
+// name), one header row plus one row per dimension combination.
+function parseReportRows(tsv: string): Record<string, string>[] {
+  const [headerLine, ...lines] = tsv.split('\n').filter(Boolean);
+  if (!headerLine) return [];
+  const delimiter = headerLine.includes('\t') ? '\t' : ',';
+  const cols = headerLine.split(delimiter).map((c) => c.trim());
+  return lines.map((line) => {
+    const fields = line.split(delimiter);
+    return Object.fromEntries(cols.map((c, i) => [c, (fields[i] ?? '').trim()]));
+  });
+}
+
+/**
+ * Daily active devices and sessions from the App Store Connect Analytics
+ * Reports API (the same numbers as the Analytics tab in App Store Connect).
+ *
+ * Apple only generates these once an ADMIN-role API key opts the app in via
+ * `POST /v1/analyticsReportRequests` (see `scripts/asc-analytics-request.mjs`);
+ * a Sales and Reports key can read them but cannot create the request. Data
+ * lags ~1 day, so the most recent day here is usually yesterday.
+ *
+ * Note on active devices: Apple pre-aggregates "Unique Devices" per row, where
+ * rows are split by app version, device, territory, source type and so on. A
+ * device active on two app versions in one day therefore counts twice in the
+ * daily sum. Sessions are exact.
+ */
+async function fetchDailyActivity(appId: string, token: string, days: number) {
+  const requests = await ascGet(`/v1/apps/${appId}/analyticsReportRequests?limit=50`, token);
+  // Prefer the ONGOING request (refreshed daily); the one-time snapshot only
+  // covers history up to the day it was created.
+  const candidates = (requests.data ?? [])
+    .filter((r: any) => !r.attributes?.stoppedDueToInactivity)
+    .sort((a: any, b: any) => (a.attributes?.accessType === 'ONGOING' ? -1 : 1));
+  if (candidates.length === 0) {
+    return {
+      available: false as const,
+      reason: 'No analytics report request exists for this app — run scripts/asc-analytics-request.mjs with an Admin ASC key',
+    };
+  }
+
+  let reportId: string | null = null;
+  for (const request of candidates) {
+    const reports = await ascGet(
+      `/v1/analyticsReportRequests/${request.id}/reports?filter[category]=APP_USAGE&limit=200`,
+      token,
+    );
+    const sessions = (reports.data ?? []).find((r: any) => r.attributes?.name === 'App Sessions Standard')
+      ?? (reports.data ?? []).find((r: any) => String(r.attributes?.name ?? '').startsWith('App Sessions'));
+    if (sessions) {
+      reportId = sessions.id;
+      break;
+    }
+  }
+  if (!reportId) {
+    return { available: false as const, reason: 'Apple has not generated the App Sessions report yet — it lands within ~48h of the request' };
+  }
+
+  const startDate = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
+  const instances = await ascGet(
+    `/v1/analyticsReports/${reportId}/instances?filter[granularity]=DAILY&limit=200`,
+    token,
+  );
+  const wanted = (instances.data ?? [])
+    .filter((i: any) => (i.attributes?.processingDate ?? '') >= startDate)
+    .sort((a: any, b: any) => String(b.attributes.processingDate).localeCompare(a.attributes.processingDate))
+    .slice(0, days);
+  if (wanted.length === 0) {
+    return { available: false as const, reason: 'No daily report instances yet for this date range' };
+  }
+
+  const byDate = new Map<string, { date: string; activeDevices: number; sessions: number }>();
+  await Promise.all(
+    wanted.map(async (instance: any) => {
+      const segments = await ascGet(`/v1/analyticsReportInstances/${instance.id}/segments?limit=200`, token);
+      for (const segment of segments.data ?? []) {
+        // Pre-signed S3 URL — sending the ASC bearer token would break the signature.
+        const file = await fetch(segment.attributes.url);
+        if (!file.ok) continue;
+        const rows = parseReportRows(gunzipSync(Buffer.from(await file.arrayBuffer())).toString('utf8'));
+        for (const row of rows) {
+          const date = row['Date'] || instance.attributes.processingDate;
+          const entry = byDate.get(date) ?? { date, activeDevices: 0, sessions: 0 };
+          entry.activeDevices += Number(row['Unique Devices']) || 0;
+          entry.sessions += Number(row['Sessions']) || 0;
+          byDate.set(date, entry);
+        }
+      }
+    }),
+  );
+
+  // Zero-fill inside the window Apple actually covers, so a quiet day reads as
+  // 0 rather than a gap in the chart.
+  const covered = [...byDate.keys()].sort();
+  const timeseries: { date: string; activeDevices: number; sessions: number }[] = [];
+  if (covered.length > 0) {
+    for (let d = new Date(`${covered[0]}T00:00:00Z`); d.toISOString().slice(0, 10) <= covered[covered.length - 1]; d.setUTCDate(d.getUTCDate() + 1)) {
+      const date = d.toISOString().slice(0, 10);
+      timeseries.push(byDate.get(date) ?? { date, activeDevices: 0, sessions: 0 });
+    }
+  }
+
+  const latest = timeseries[timeseries.length - 1] ?? null;
+  return {
+    available: true as const,
+    timeseries,
+    totals: {
+      avgActiveDevices: timeseries.length > 0
+        ? Math.round(timeseries.reduce((s, d) => s + d.activeDevices, 0) / timeseries.length)
+        : 0,
+      peakActiveDevices: timeseries.reduce((m, d) => Math.max(m, d.activeDevices), 0),
+      sessions: timeseries.reduce((s, d) => s + d.sessions, 0),
+      latestDate: latest?.date ?? null,
+      latestActiveDevices: latest?.activeDevices ?? 0,
+    },
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const project = (req.query.project as string) || '';
@@ -136,6 +262,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         app: itunes,
         reviews: [],
         downloads: { available: false, reason: 'ASC API key not configured' },
+        activity: { available: false, reason: 'ASC API key not configured' },
       });
     }
 
@@ -145,7 +272,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const salesKeyId = process.env.ASC_SALES_KEY_ID;
     const salesPrivateKey = process.env.ASC_SALES_PRIVATE_KEY;
     const salesToken = salesKeyId && salesPrivateKey ? makeAscToken(salesKeyId, issuerId, salesPrivateKey) : token;
-    const [itunes, reviews, downloads] = await Promise.all([
+    // Analytics reports need Admin, Sales and Reports, or Finance — the same
+    // roles as Sales and Trends, so reuse that key unless one is set explicitly.
+    const analyticsKeyId = process.env.ASC_ANALYTICS_KEY_ID;
+    const analyticsPrivateKey = process.env.ASC_ANALYTICS_PRIVATE_KEY;
+    const analyticsToken = analyticsKeyId && analyticsPrivateKey
+      ? makeAscToken(analyticsKeyId, issuerId, analyticsPrivateKey)
+      : salesToken;
+    const [itunes, reviews, downloads, activity] = await Promise.all([
       fetchItunesLookup(appId),
       fetchReviews(appId, token),
       vendorNumber
@@ -154,10 +288,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             reason: String(err?.message ?? err),
           }))
         : Promise.resolve({ available: false as const, reason: 'ASC_VENDOR_NUMBER not configured' }),
+      fetchDailyActivity(appId, analyticsToken, days).catch((err) => ({
+        available: false as const,
+        reason: String(err?.message ?? err),
+      })),
     ]);
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200');
-    res.json({ connected: true, app: itunes, reviews, downloads });
+    res.json({ connected: true, app: itunes, reviews, downloads, activity });
   } catch (error) {
     console.error('App Store query error:', error);
     res.status(500).json({ error: 'Failed to fetch App Store data' });

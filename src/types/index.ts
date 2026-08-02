@@ -272,6 +272,12 @@ export interface AppStoreDownloadDay {
   redownloads: number;
 }
 
+export interface AppStoreActivityDay {
+  date: string;
+  activeDevices: number;
+  sessions: number;
+}
+
 export interface AppStoreResponse {
   connected: boolean;
   reason?: string;
@@ -287,6 +293,19 @@ export interface AppStoreResponse {
   reviews: AppStoreReview[];
   downloads:
     | { available: true; timeseries: AppStoreDownloadDay[]; totals: { downloads: number; updates: number; redownloads: number } }
+    | { available: false; reason: string };
+  activity:
+    | {
+        available: true;
+        timeseries: AppStoreActivityDay[];
+        totals: {
+          avgActiveDevices: number;
+          peakActiveDevices: number;
+          sessions: number;
+          latestDate: string | null;
+          latestActiveDevices: number;
+        };
+      }
     | { available: false; reason: string };
 }
 
