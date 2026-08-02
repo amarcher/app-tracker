@@ -24,7 +24,9 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 
 4. **Cloudflare GraphQL Analytics API** — Per-project CDN stats for projects using Cloudflare (R2 video hosting). Shows bandwidth, cache hit ratio, requests (cached vs uncached), and R2 storage. Each project maps to a Cloudflare Zone ID. Only shown for projects with `cloudflare: true` in the PROJECTS config.
 
-5. **App Store Connect API + iTunes lookup** — iOS app stats for projects with `appStore: true` (currently Space Race). Public iTunes lookup provides rating/version with no auth; the ASC API (ES256 JWT from `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_PRIVATE_KEY`) provides customer reviews; daily download units come from the Sales Reports API and additionally require `ASC_VENDOR_NUMBER`. Each capability degrades gracefully when its env vars are missing. Note: sales/analytics report access depends on the API key's role — App Manager keys can read reviews but may not have Sales and Trends access.
+5. **App Store Connect API + iTunes lookup** — iOS app stats for projects with `appStore: true` (currently Space Race). Public iTunes lookup provides rating/version with no auth; the ASC API (ES256 JWT from `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_PRIVATE_KEY`) provides customer reviews; daily download units come from the Sales Reports API and additionally require `ASC_VENDOR_NUMBER`; daily active devices and sessions come from the Analytics Reports API. Each capability degrades gracefully when its env vars are missing. Note: sales/analytics report access depends on the API key's role — App Manager keys can read reviews but may not have Sales and Trends access.
+
+   **Analytics Reports (daily active devices)** are opt-in per app: Apple generates nothing until an **Admin-role** key POSTs to `/v1/analyticsReportRequests`. A Sales and Reports key can *read* the reports but gets a 403 creating the request. Run `scripts/asc-analytics-request.mjs <appId>` once with an Admin key; reports appear within ~48h, then the route reads them with the Sales key (or `ASC_ANALYTICS_KEY_ID`/`ASC_ANALYTICS_PRIVATE_KEY` if set). Data lags ~1 day. Active devices come from the "App Sessions Standard" report's `Unique Devices` column, which Apple pre-aggregates per app version / device / territory / source — so the daily sum slightly over-counts devices that span several of those. Sessions are exact.
 
 ### API Routes (`api/`)
 
@@ -33,7 +35,7 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 - `elevenlabs-usage.ts` — Queries ElevenLabs usage stats and subscription info. Account-wide, not project-specific.
 - `api-usage.ts` — Queries Neon Postgres for self-instrumented usage data. Accepts `?project=` to filter.
 - `cloudflare-cdn.ts` — Queries Cloudflare GraphQL API for HTTP request stats (`httpRequests1dGroups`) and R2 storage (`r2StorageAdaptiveGroups`). Accepts `?project=` to select the zone. Zone IDs mapped from env vars. Only returns data for projects with Cloudflare zones configured.
-- `app-store.ts` — App Store stats (rating, version, reviews, daily downloads) for projects in its `APPS` map. Accepts `?project=`. See data source #5 for the env vars each capability needs.
+- `app-store.ts` — App Store stats (rating, version, reviews, daily downloads, daily active devices) for projects in its `APPS` map. Accepts `?project=`. See data source #5 for the env vars each capability needs.
 
 ### Frontend
 
