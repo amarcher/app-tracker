@@ -238,6 +238,21 @@ body {
   margin-bottom: 20px;
 }
 
+.panel-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: -8px 0 20px;
+}
+
+.panel-note code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
 .tables-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

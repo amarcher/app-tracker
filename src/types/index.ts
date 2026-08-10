@@ -309,4 +309,44 @@ export interface AppStoreResponse {
     | { available: false; reason: string };
 }
 
+export interface AmazonDownloadDay {
+  date: string;
+  downloads: number;
+}
+
+export interface AmazonStatsDay {
+  date: string;
+  installs: number;
+  installEvents: number;
+  currentInstalls: number;
+  dau: number;
+  wau: number;
+  mau: number;
+}
+
+export interface AmazonAppstoreResponse {
+  connected: boolean;
+  reason?: string;
+  app: { name: string; packageName: string; asin: string | null } | null;
+  downloads:
+    | { available: true; timeseries: AmazonDownloadDay[]; totals: { downloads: number } }
+    | { available: false; reason: string };
+  stats:
+    | {
+        available: true;
+        timeseries: AmazonStatsDay[];
+        totals: {
+          installs: number;
+          currentInstalls: number;
+          latestDate: string;
+          latestDau: number;
+          latestWau: number;
+          latestMau: number;
+          avgDau: number;
+          peakDau: number;
+        };
+      }
+    | { available: false; reason: string };
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';

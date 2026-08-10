@@ -9,6 +9,7 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 - **Traffic** — Pageviews, sessions, users, top pages, and traffic sources per project via Google Analytics 4 Data API
 - **API Usage** — Per-project Anthropic token consumption and ElevenLabs character usage, self-instrumented via Neon Postgres
 - **ElevenLabs Account** — Account-wide character quota, product breakdown, and daily usage trends
+- **App stores** — iOS downloads, active devices, rating and reviews via App Store Connect; Amazon Appstore downloads via the Appstore Reporting API, with installs and DAU/WAU/MAU ingested from Download Center CSVs
 
 ## Monitored Projects
 
@@ -22,6 +23,7 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 | Superbowl Squares | superbowl-squares.com | — |
 | Tabbit Rabbit | tabbitrabbit.com | Anthropic |
 | Mark My Words | archer.biz | Anthropic + ElevenLabs TTS |
+| Space Race | game.spaceexplorer.tech | App Store Connect + Amazon Appstore |
 
 ## Architecture
 
@@ -51,3 +53,16 @@ vercel dev
 ```
 
 Requires a GA4 service account key file (`ga4-key.json`) — see the SEO & Observability skill for setup instructions.
+
+## Amazon Appstore reports
+
+Downloads arrive automatically through the Appstore Reporting API. Installs and active
+users do not: Amazon publishes those only as Download Center CSVs, with no API of any
+kind. Once a month (or whenever you want them fresh):
+
+1. Developer Console > **My Reports > Download Center** > Acquisition Reports and
+   Engagement Reports, and download the month you want.
+2. `node scripts/ingest-amazon-reports.mjs ~/Downloads/*.csv`
+
+Both report types can go in one command, and re-ingesting a month is idempotent. Add
+`--dry-run` to see what would be written.
