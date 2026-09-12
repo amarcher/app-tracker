@@ -40,10 +40,10 @@ export async function ensureBusinessStorage() {
 }
 
 async function archiveStore(project: string, store: BusinessStore) {
-  if (!process.env.DATABASE_URL || !store.timeseries.length) return;
+  if (!process.env.DATABASE_URL) return;
   const db = neon(process.env.DATABASE_URL);
   // One SQL statement per report; reruns replace observations, never add them.
-  await db`INSERT INTO store_download_days (project, store, date, downloads, updates, redownloads)
+  if (store.timeseries.length) await db`INSERT INTO store_download_days (project, store, date, downloads, updates, redownloads)
     SELECT ${project}, ${store.store}, (r->>'date')::date, (r->>'downloads')::integer,
       (r->>'updates')::integer, (r->>'redownloads')::integer
     FROM jsonb_array_elements(${JSON.stringify(store.timeseries)}::jsonb) r
@@ -112,7 +112,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
       const downloads = report.status === 'fulfilled' && 'downloads' in report.value ? report.value.downloads : null;
       const summary = storeSummary(store, downloads?.available && "timeseries" in downloads ? downloads.timeseries : [], dates);
       if (!summary.available) summary.reason = 'No store report is available for this period.';
-      if (archive) { try { await archiveStore(project, summary); } catch { summary.reason = 'Live report received; history could not be saved.'; } }
+      if (archive) { try { await archiveStore(project, summary); } catch { summary.reason = summary.available ? 'Live report received; history could not be saved.' : 'No current store report is available; history could not be loaded.'; } }
       return summary;
     }));
     return { project, name: app.name, stores };
