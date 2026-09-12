@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { deflateRawSync, gzipSync } from 'node:zlib';
-import { parseCsv, pick, unpackReport, isoDate, fetchDownloads } from '../amazon-appstore';
+import { parseCsv, pick, unpackReport, isoDate, fetchDownloads, summarizeIngestedStats } from '../amazon-appstore';
 
 // Amazon hands back a zipped CSV; build one the way a zip writer would so the
 // hand-rolled reader is exercised against a real local file header.
@@ -101,7 +101,7 @@ describe('fetchDownloads', () => {
   // Dated relative to now so the row always falls inside the 30-day window —
   // a hardcoded date would silently start failing next month.
   const SALE_DATE = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10);
-  const THIS_MONTH = new Date().toISOString().slice(0, 7);
+  const THIS_MONTH = SALE_DATE.slice(0, 7);
   const SALES_CSV = [
     'Marketplace,Transaction Time,Asin,Title,Item Type,Units,Sales Price (Marketplace Currency)',
     `Amazon.com,${SALE_DATE}T09:14:02Z,B0FAKE1234,Space Race,Apps,1,0`,
@@ -125,20 +125,28 @@ describe('fetchDownloads', () => {
 
   it('skips empty months and still counts the month that has data', async () => {
     stubFetch(withReport);
-    const result = await fetchDownloads(undefined, 'token', 30);
+    const result = await fetchDownloads('B0FAKE1234', 'token', 30);
     expect(result.available).toBe(true);
     expect(result.totals.downloads).toBe(1);
     expect(result.timeseries.find((d) => d.date === SALE_DATE)?.downloads).toBe(1);
   });
 
+  it('uses exactly the requested completed days, excluding today', async () => {
+    stubFetch(withReport);
+    const result = await fetchDownloads('B0FAKE1234', 'token', 7);
+    expect(result.timeseries).toHaveLength(7);
+    expect(result.timeseries.at(-1)?.date).toBe(new Date(Date.now() - 86400_000).toISOString().slice(0, 10));
+    expect(result.timeseries[0].date).toBe(new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10));
+  });
+
   it('surfaces a 400 that is not "Report not found"', async () => {
     stubFetch({ [THIS_MONTH]: { status: 400, body: 'Invalid vendor' } });
-    await expect(fetchDownloads(undefined, 'token', 30)).rejects.toThrow(/Invalid vendor/);
+    await expect(fetchDownloads('B0FAKE1234', 'token', 30)).rejects.toThrow(/Invalid vendor/);
   });
 
   it('ignores rows for a different ASIN', async () => {
     stubFetch(withReport);
-    expect((await fetchDownloads('B0OTHER0000', 'token', 30)).totals.downloads).toBe(0);
+    expect((await fetchDownloads('B0OTHER000', 'token', 30)).totals.downloads).toBe(0);
   });
 
   it('excludes IAP and subscription rows', async () => {
@@ -162,6 +170,37 @@ describe('fetchDownloads', () => {
         ].join('\n')),
       };
     }));
-    expect((await fetchDownloads(undefined, 'token', 30)).totals.downloads).toBe(1);
+    expect((await fetchDownloads('B0FAKE1234', 'token', 30)).totals.downloads).toBe(1);
+  });
+});
+
+describe('safe Amazon attribution and totals', () => {
+  it('refuses an account-wide download query', async () => {
+    await expect(fetchDownloads(undefined, 'token', 7)).rejects.toThrow(/explicit app ASIN/);
+  });
+  it('keeps absent monthly reports unavailable rather than reporting zero', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ status: 404 })));
+    const result = await fetchDownloads('B0FAKE1234', 'token', 7);
+    expect(result.complete).toBe(false);
+    expect(result.timeseries.every(day => !day.reportAvailable)).toBe(true);
+    vi.unstubAllGlobals();
+  });
+  it('uses the explicit rollup without adding its segments', () => {
+    const rows = [
+      { date: '2026-09-09', device_type: 'all', marketplace: 'all', daily_installs_unique: 4, dau: 7, mau: 11 },
+      { date: '2026-09-09', device_type: 'Fire tablet', marketplace: 'Amazon.com', daily_installs_unique: 3, dau: 5, mau: 9 },
+    ];
+    const report = summarizeIngestedStats(rows);
+    expect(report.totals.installs).toBe(4);
+    expect(report.totals.latestDau).toBe(7);
+    expect(report.totals.currentInstalls).toBeNull();
+  });
+  it('does not invent unique-user totals from overlapping or suppressed segments', () => {
+    const report = summarizeIngestedStats([
+      { date: '2026-09-09', device_type: 'Fire tablet', marketplace: 'Amazon.com', dau: 5 },
+      { date: '2026-09-09', device_type: 'Fire TV', marketplace: 'Amazon.com', dau: 3 },
+    ]);
+    expect(report.totals.latestDau).toBeNull();
+    expect(report.totals.installs).toBeNull();
   });
 });

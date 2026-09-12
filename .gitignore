@@ -4,3 +4,6 @@ dist
 ga4-key.json
 *.local
 .vercel
+.env*
+!.env.example
+.codex/

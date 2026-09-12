@@ -2,10 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPrivateKey, sign } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 
-// App Store Connect app IDs per dashboard project
-const APPS: Record<string, string | undefined> = {
-  'space-race': process.env.APP_STORE_APP_ID_SPACE_RACE,
-};
+import { STORE_APPS, mapBounded, appleCredentials } from './_shared/store-apps.js';
 
 function b64url(input: string | Buffer): string {
   return Buffer.from(input).toString('base64url');
@@ -64,8 +61,8 @@ async function fetchDailyUnits(appId: string, vendorNumber: string, token: strin
     dates.push(d.toISOString().slice(0, 10));
   }
 
-  const perDay = await Promise.all(
-    dates.map(async (date) => {
+  const perDay = await mapBounded(
+    dates, async (date) => {
       const params = new URLSearchParams({
         'filter[frequency]': 'DAILY',
         'filter[reportType]': 'SALES',
@@ -76,30 +73,32 @@ async function fetchDailyUnits(appId: string, vendorNumber: string, token: strin
       const res = await fetch(`https://api.appstoreconnect.apple.com/v1/salesReports?${params}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/a-gzip' },
       });
-      if (res.status === 404) return { date, downloads: 0, updates: 0, redownloads: 0 };
+      if (res.status === 404) return { date, downloads: 0, updates: 0, redownloads: 0, reportAvailable: false };
       if (!res.ok) throw new Error(`salesReports ${res.status} for ${date}`);
       const tsv = gunzipSync(Buffer.from(await res.arrayBuffer())).toString('utf8');
       const [headerLine, ...rows] = tsv.split('\n').filter(Boolean);
-      const cols = headerLine.split('\t');
+      const cols = headerLine.split('\t').map(column => column.trim());
       const idx = {
         units: cols.indexOf('Units'),
         productType: cols.indexOf('Product Type Identifier'),
         appleId: cols.indexOf('Apple Identifier'),
       };
+      if (Object.values(idx).some(index => index < 0)) throw new Error('Unrecognized sales report columns');
       let downloads = 0;
       let updates = 0;
       let redownloads = 0;
       for (const row of rows) {
         const f = row.split('\t');
         if (f[idx.appleId] !== appId) continue;
-        const units = Number(f[idx.units]) || 0;
+        const units = Number(f[idx.units]);
+        if (!f[idx.units]?.trim() || !Number.isSafeInteger(units)) throw new Error('Invalid sales report units');
         const type = f[idx.productType] ?? '';
         if (type.startsWith('1')) downloads += units;
         else if (type.startsWith('7')) updates += units;
         else if (type.startsWith('3')) redownloads += units;
       }
-      return { date, downloads, updates, redownloads };
-    }),
+      return { date, downloads, updates, redownloads, reportAvailable: true };
+    },
   );
 
   const totals = perDay.reduce(
@@ -110,7 +109,7 @@ async function fetchDailyUnits(appId: string, vendorNumber: string, token: strin
     }),
     { downloads: 0, updates: 0, redownloads: 0 },
   );
-  return { available: true as const, timeseries: perDay, totals };
+  return { available: true as const, timeseries: perDay, totals, complete: perDay.every(day => day.reportAvailable), reportingTimezone: 'America/Los_Angeles' };
 }
 
 const ASC_BASE = 'https://api.appstoreconnect.apple.com';
@@ -154,7 +153,7 @@ async function fetchDailyActivity(appId: string, token: string, days: number) {
   // covers history up to the day it was created.
   const candidates = (requests.data ?? [])
     .filter((r: any) => !r.attributes?.stoppedDueToInactivity)
-    .sort((a: any, b: any) => (a.attributes?.accessType === 'ONGOING' ? -1 : 1));
+    .sort((a: any) => (a.attributes?.accessType === 'ONGOING' ? -1 : 1));
   if (candidates.length === 0) {
     return {
       available: false as const,
@@ -239,24 +238,19 @@ async function fetchDailyActivity(appId: string, token: string, days: number) {
   };
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    const project = (req.query.project as string) || '';
-    const range = (req.query.range as string) || '30d';
-    const days = Math.min(parseInt(range.replace('d', ''), 10) || 30, 30);
+export async function loadAppStore(project: string, range = '30d') {
+    const days = Math.min(parseInt(range.replace('d', ''), 10) || 30, 90);
 
-    const appId = APPS[project];
+    const appId = STORE_APPS[project]?.appleId;
     if (!appId) {
-      return res.json({ connected: false, reason: `No App Store app configured for ${project}` });
+      return ({ connected: false, reason: `No App Store app configured for ${project}` });
     }
 
-    const keyId = process.env.ASC_KEY_ID;
-    const issuerId = process.env.ASC_ISSUER_ID;
-    const privateKey = process.env.ASC_PRIVATE_KEY;
-    const vendorNumber = process.env.ASC_VENDOR_NUMBER;
+    const credentials = appleCredentials(project);
+    const { keyId, issuerId, privateKey, vendorNumber } = credentials;
     if (!keyId || !issuerId || !privateKey) {
       const itunes = await fetchItunesLookup(appId);
-      return res.json({
+      return ({
         connected: !!itunes,
         reason: 'ASC API key not configured; showing public data only',
         app: itunes,
@@ -269,13 +263,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const token = makeAscToken(keyId, issuerId, privateKey);
     // Sales and Trends needs a key with the Sales/Finance/Admin role, which the
     // main (App Manager) key may lack — allow a dedicated key pair for it.
-    const salesKeyId = process.env.ASC_SALES_KEY_ID;
-    const salesPrivateKey = process.env.ASC_SALES_PRIVATE_KEY;
+    const salesKeyId = credentials.salesKeyId;
+    const salesPrivateKey = credentials.salesPrivateKey;
     const salesToken = salesKeyId && salesPrivateKey ? makeAscToken(salesKeyId, issuerId, salesPrivateKey) : token;
     // Analytics reports need Admin, Sales and Reports, or Finance — the same
     // roles as Sales and Trends, so reuse that key unless one is set explicitly.
-    const analyticsKeyId = process.env.ASC_ANALYTICS_KEY_ID;
-    const analyticsPrivateKey = process.env.ASC_ANALYTICS_PRIVATE_KEY;
+    const analyticsKeyId = credentials.analyticsKeyId;
+    const analyticsPrivateKey = credentials.analyticsPrivateKey;
     const analyticsToken = analyticsKeyId && analyticsPrivateKey
       ? makeAscToken(analyticsKeyId, issuerId, analyticsPrivateKey)
       : salesToken;
@@ -294,10 +288,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
     ]);
 
+    return { connected: true, app: itunes, reviews, downloads, activity };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    const data = await loadAppStore(String(req.query.project || ''), String(req.query.range || '30d'));
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200');
-    res.json({ connected: true, app: itunes, reviews, downloads, activity });
-  } catch (error) {
-    console.error('App Store query error:', error);
-    res.status(500).json({ error: 'Failed to fetch App Store data' });
-  }
+    res.json(data);
+  } catch { res.status(503).json({ error: 'App Store data is unavailable.' }); }
 }

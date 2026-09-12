@@ -22,6 +22,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (project === '__businesses__') { setLoading(false); return; }
     setLoading(true);
     setError(null);
 

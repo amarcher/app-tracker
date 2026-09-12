@@ -22,12 +22,20 @@
 import { readFileSync } from 'node:fs';
 import { neon } from '@neondatabase/serverless';
 import 'dotenv/config';
+import { STORE_APPS } from '../api/_shared/store-apps.ts';
 
 const args = process.argv.slice(2);
-const files = args.filter((a) => !a.startsWith('--'));
-const dryRun = args.includes('--dry-run');
-const projectIndex = args.indexOf('--project');
-const project = projectIndex >= 0 ? args[projectIndex + 1] : 'space-race';
+const files = [];
+let project = 'space-race';
+let dryRun = false;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--project') project = args[++i];
+  else if (args[i] === '--dry-run') dryRun = true;
+  else if (args[i].startsWith('--')) throw new Error(`Unknown option: ${args[i]}`);
+  else files.push(args[i]);
+}
+const app = STORE_APPS[project];
+if (!app) throw new Error('Choose a known dashboard project with an app ASIN');
 
 if (files.length === 0) {
   console.error('Usage: node scripts/ingest-amazon-reports.mjs [--project space-race] [--dry-run] <report.csv>...');
@@ -73,8 +81,9 @@ function pick(row, ...candidates) {
 }
 
 const num = (v) => {
+  if (v == null || String(v).trim() === '') return null;
   const n = Number(String(v ?? '').replace(/[,%]/g, ''));
-  return Number.isFinite(n) ? n : null;
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
 };
 
 // Amazon writes dates as YYYY-MM-DD in these reports, but has used MM/DD/YYYY
@@ -83,7 +92,7 @@ function isoDate(value) {
   if (!value) return null;
   const trimmed = value.trim().slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  const us = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const us = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (us) return `${us[3]}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}`;
   return null;
 }
@@ -112,6 +121,7 @@ for (const file of files) {
 
   let used = 0;
   for (const row of rows) {
+    if (pick(row, 'App ASIN', 'ASIN') !== app.asin) continue;
     const date = isoDate(pick(row, 'Date'));
     if (!date) continue;
     const deviceType = pick(row, 'Device Type') ?? 'all';
@@ -119,14 +129,17 @@ for (const file of files) {
 
     if (isAcquisition) {
       upsertLocal(date, deviceType, marketplace, {
+        acquisition: true,
         asin: pick(row, 'App ASIN', 'ASIN') ?? null,
         appName: pick(row, 'App Name', 'Title') ?? null,
         dailyInstallsUnique: num(pick(row, 'Daily Installs (unique)', 'Daily Installs Unique', 'Daily Installs')),
         dailyInstallEvents: num(pick(row, 'Daily Install Events')),
         currentUserInstalls: num(pick(row, 'Current User Installs')),
       });
-    } else {
+    }
+    if (isEngagement) {
       upsertLocal(date, deviceType, marketplace, {
+        engagement: true,
         asin: pick(row, 'App ASIN', 'ASIN') ?? null,
         appName: pick(row, 'App Name', 'Title') ?? null,
         dau: num(pick(row, 'Daily Active Users (DAU)', 'Daily Active Users', 'DAU')),
@@ -177,8 +190,8 @@ await sql`
 `;
 await sql`CREATE INDEX IF NOT EXISTS amazon_appstore_stats_project_date ON amazon_appstore_stats (project, date)`;
 
-// COALESCE on update so an engagement file doesn't blank out the install
-// columns an acquisition file already wrote for the same day (and vice versa).
+// Replace even a suppressed count when that report type is present. Keep the
+// other report type intact; a refreshed acquisition file must not erase DAU.
 for (const r of all) {
   await sql`
     INSERT INTO amazon_appstore_stats (
@@ -192,12 +205,12 @@ for (const r of all) {
     ON CONFLICT (project, date, device_type, marketplace) DO UPDATE SET
       asin = COALESCE(EXCLUDED.asin, amazon_appstore_stats.asin),
       app_name = COALESCE(EXCLUDED.app_name, amazon_appstore_stats.app_name),
-      daily_installs_unique = COALESCE(EXCLUDED.daily_installs_unique, amazon_appstore_stats.daily_installs_unique),
-      daily_install_events = COALESCE(EXCLUDED.daily_install_events, amazon_appstore_stats.daily_install_events),
-      current_user_installs = COALESCE(EXCLUDED.current_user_installs, amazon_appstore_stats.current_user_installs),
-      dau = COALESCE(EXCLUDED.dau, amazon_appstore_stats.dau),
-      wau = COALESCE(EXCLUDED.wau, amazon_appstore_stats.wau),
-      mau = COALESCE(EXCLUDED.mau, amazon_appstore_stats.mau),
+      daily_installs_unique = CASE WHEN ${!!r.acquisition} THEN EXCLUDED.daily_installs_unique ELSE amazon_appstore_stats.daily_installs_unique END,
+      daily_install_events = CASE WHEN ${!!r.acquisition} THEN EXCLUDED.daily_install_events ELSE amazon_appstore_stats.daily_install_events END,
+      current_user_installs = CASE WHEN ${!!r.acquisition} THEN EXCLUDED.current_user_installs ELSE amazon_appstore_stats.current_user_installs END,
+      dau = CASE WHEN ${!!r.engagement} THEN EXCLUDED.dau ELSE amazon_appstore_stats.dau END,
+      wau = CASE WHEN ${!!r.engagement} THEN EXCLUDED.wau ELSE amazon_appstore_stats.wau END,
+      mau = CASE WHEN ${!!r.engagement} THEN EXCLUDED.mau ELSE amazon_appstore_stats.mau END,
       updated_at = NOW()
   `;
 }

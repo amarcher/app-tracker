@@ -266,6 +266,7 @@ export interface AppStoreReview {
 }
 
 export interface AppStoreDownloadDay {
+  reportAvailable?: boolean;
   date: string;
   downloads: number;
   updates: number;
@@ -292,7 +293,7 @@ export interface AppStoreResponse {
   } | null;
   reviews: AppStoreReview[];
   downloads:
-    | { available: true; timeseries: AppStoreDownloadDay[]; totals: { downloads: number; updates: number; redownloads: number } }
+    | { available: true; complete?: boolean; timeseries: AppStoreDownloadDay[]; totals: { downloads: number; updates: number; redownloads: number } }
     | { available: false; reason: string };
   activity:
     | {
@@ -310,18 +311,19 @@ export interface AppStoreResponse {
 }
 
 export interface AmazonDownloadDay {
+  reportAvailable?: boolean;
   date: string;
   downloads: number;
 }
 
 export interface AmazonStatsDay {
   date: string;
-  installs: number;
-  installEvents: number;
-  currentInstalls: number;
-  dau: number;
-  wau: number;
-  mau: number;
+  installs: number | null;
+  installEvents: number | null;
+  currentInstalls: number | null;
+  dau: number | null;
+  wau: number | null;
+  mau: number | null;
 }
 
 export interface AmazonAppstoreResponse {
@@ -329,21 +331,22 @@ export interface AmazonAppstoreResponse {
   reason?: string;
   app: { name: string; packageName: string; asin: string | null } | null;
   downloads:
-    | { available: true; timeseries: AmazonDownloadDay[]; totals: { downloads: number } }
+    | { available: true; complete?: boolean; timeseries: AmazonDownloadDay[]; totals: { downloads: number } }
     | { available: false; reason: string };
   stats:
     | {
         available: true;
         timeseries: AmazonStatsDay[];
+        note?: string;
         totals: {
-          installs: number;
-          currentInstalls: number;
+          installs: number | null;
+          currentInstalls: number | null;
           latestDate: string;
-          latestDau: number;
-          latestWau: number;
-          latestMau: number;
-          avgDau: number;
-          peakDau: number;
+          latestDau: number | null;
+          latestWau: number | null;
+          latestMau: number | null;
+          avgDau: number | null;
+          peakDau: number | null;
         };
       }
     | { available: false; reason: string };
