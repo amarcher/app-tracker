@@ -2,14 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { gunzipSync, inflateRawSync } from 'node:zlib';
 
-// Amazon Appstore apps per dashboard project. The ASIN filters the sales
-// report; leave it unset on a single-app account and every row counts.
-const APPS: Record<string, { asin?: string; packageName: string } | undefined> = {
-  'space-race': {
-    asin: process.env.AMAZON_ASIN_SPACE_RACE,
-    packageName: 'tech.spaceexplorer.spacerace',
-  },
-};
+import { STORE_APPS } from './_shared/store-apps.js';
 
 const LWA_TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 const REPORTING_SCOPE = 'adx_reporting::appstore:marketer';
@@ -129,8 +122,10 @@ function monthsInRange(days: number): { year: number; month: number }[] {
  * both and trims to the window.
  */
 export async function fetchDownloads(asin: string | undefined, token: string, days: number) {
+  if (!asin || !/^[A-Z0-9]{10}$/.test(asin)) throw new Error('An explicit app ASIN is required');
   const since = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
   const byDate = new Map<string, number>();
+  const coveredMonths = new Set<string>();
 
   for (const { year, month } of monthsInRange(days)) {
     const url = `${REPORTING_BASE}/sales/${year}/${String(month).padStart(2, '0')}`;
@@ -138,8 +133,8 @@ export async function fetchDownloads(asin: string | undefined, token: string, da
     if (res.status === 404) continue;
 
     // A month Amazon has no report for answers "400 Report not found" rather
-    // than a 404 — that is a quiet month, not a failure, and any range longer
-    // than the app has been live will hit it. Other 400s are real and surface.
+    // than a 404. Keep its dates unavailable; absence is not evidence of zero
+    // acquisitions. Other 400s are real failures and surface.
     const body = (await res.text()).trim();
     if (res.status === 400 && /report not found/i.test(body)) continue;
     if (!res.ok) throw new Error(`sales report ${year}-${month} → ${res.status}: ${body.slice(0, 120)}`);
@@ -151,30 +146,35 @@ export async function fetchDownloads(asin: string | undefined, token: string, da
       const parsed = JSON.parse(body);
       downloadUrl = parsed.url ?? parsed.downloadUrl ?? parsed.location;
     }
-    if (!downloadUrl?.startsWith('http')) continue;
+    if (!downloadUrl?.startsWith('https://')) throw new Error('Invalid report download address');
 
     // Presigned URL — sending the LWA token would break the signature.
     const file = await fetch(downloadUrl);
     if (!file.ok) throw new Error(`report download → ${file.status}`);
     const rows = parseCsv(unpackReport(Buffer.from(await file.arrayBuffer())));
+    coveredMonths.add(`${year}-${String(month).padStart(2, "0")}`);
 
     for (const row of rows) {
-      if (asin && pick(row, 'ASIN') !== asin) continue;
+      if (pick(row, 'ASIN', 'App ASIN') !== asin) continue;
       const itemType = (pick(row, 'Item Type') ?? '').toLowerCase();
       if (itemType.includes('iap') || itemType.includes('subscription') || itemType.includes('in-app')) continue;
       const date = isoDate(pick(row, 'Transaction Time', 'Transaction Date', 'Date'));
       if (!date || date < since) continue;
-      byDate.set(date, (byDate.get(date) ?? 0) + (Number(pick(row, 'Units')) || 0));
+      const units = pick(row, 'Units');
+      if (!units?.trim() || !Number.isSafeInteger(Number(units))) throw new Error('Unrecognized app units in report');
+      byDate.set(date, (byDate.get(date) ?? 0) + Number(units));
     }
   }
 
-  const timeseries: { date: string; downloads: number }[] = [];
+  const timeseries: { date: string; downloads: number; reportAvailable: boolean }[] = [];
   for (let i = days; i >= 0; i--) {
     const date = new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10);
-    timeseries.push({ date, downloads: byDate.get(date) ?? 0 });
+    timeseries.push({ date, downloads: byDate.get(date) ?? 0, reportAvailable: coveredMonths.has(date.slice(0, 7)) });
   }
   return {
     available: true as const,
+    complete: timeseries.every(row => row.reportAvailable),
+    reportingTimezone: "UTC",
     timeseries,
     totals: { downloads: timeseries.reduce((s, d) => s + d.downloads, 0) },
   };
@@ -206,65 +206,47 @@ async function fetchIngestedStats(project: string, days: number) {
   const tableExists = (await sql`SELECT to_regclass('public.amazon_appstore_stats') AS t`) as { t: string | null }[];
   if (!tableExists[0]?.t) return noReports;
 
-  // Rows are split by device type and marketplace. Installs sum cleanly across
-  // those segments; active users do not, since one user on two devices would
-  // count twice. MAX picks Amazon's rollup row when it emits one and the
-  // largest single segment otherwise — an undercount, chosen deliberately over
-  // the double-count that SUM would give.
-  const rows = (await sql`
-    SELECT
-      to_char(date, 'YYYY-MM-DD') AS date,
-      SUM(daily_installs_unique) AS installs,
-      SUM(daily_install_events) AS install_events,
-      MAX(current_user_installs) AS current_installs,
-      MAX(dau) AS dau,
-      MAX(wau) AS wau,
-      MAX(mau) AS mau
+  // Filter the ASIN on reads too: legacy imports could have mixed apps.
+  const rows = await sql`
+    SELECT to_char(date, 'YYYY-MM-DD') AS date, device_type, marketplace,
+      daily_installs_unique, daily_install_events, current_user_installs, dau, wau, mau
     FROM amazon_appstore_stats
-    WHERE project = ${project} AND date >= ${since}
-    GROUP BY date
+    WHERE project=${project} AND asin=${STORE_APPS[project]?.asin ?? ''} AND date >= ${since}
     ORDER BY date
-  `) as Record<string, string | null>[];
-
+  `;
   if (rows.length === 0) return noReports;
+  return summarizeIngestedStats(rows);
 
-  const timeseries = rows.map((r) => ({
-    date: r.date as string,
-    installs: Number(r.installs) || 0,
-    installEvents: Number(r.install_events) || 0,
-    currentInstalls: Number(r.current_installs) || 0,
-    dau: Number(r.dau) || 0,
-    wau: Number(r.wau) || 0,
-    mau: Number(r.mau) || 0,
-  }));
-  const latest = timeseries[timeseries.length - 1];
-  const withDau = timeseries.filter((d) => d.dau > 0);
-
-  return {
-    available: true as const,
-    timeseries,
-    totals: {
-      installs: timeseries.reduce((s, d) => s + d.installs, 0),
-      currentInstalls: latest.currentInstalls,
-      latestDate: latest.date,
-      latestDau: latest.dau,
-      latestWau: latest.wau,
-      latestMau: latest.mau,
-      avgDau: withDau.length > 0 ? Math.round(withDau.reduce((s, d) => s + d.dau, 0) / withDau.length) : 0,
-      peakDau: timeseries.reduce((m, d) => Math.max(m, d.dau), 0),
-    },
-  };
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    const project = (req.query.project as string) || '';
-    const range = (req.query.range as string) || '30d';
+// Unique users cannot be added across overlapping segments or replaced by
+// the largest segment. Only Amazon's explicit all-device/all-marketplace row
+// supports a portfolio total. Keep unavailable/suppressed cells null.
+export function summarizeIngestedStats(rows: Record<string, unknown>[]) {
+  const all = (value: unknown) => /^(all|all devices|all device types|all marketplaces|total)$/i.test(String(value).trim());
+  const number = (value: unknown) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+  const timeseries = [...new Set(rows.map(row => String(row.date)))].sort().map(date => {
+    const rollups = rows.filter(row => row.date === date && all(row.device_type) && all(row.marketplace));
+    const metric = (key: string) => rollups.length === 1 ? number(rollups[0][key]) : null;
+    return { date, installs: metric('daily_installs_unique'), installEvents: metric('daily_install_events'),
+      currentInstalls: metric('current_user_installs'), dau: metric('dau'), wau: metric('wau'), mau: metric('mau') };
+  });
+  const latest = timeseries.at(-1)!;
+  const active = timeseries.flatMap(row => row.dau === null ? [] : [row.dau]);
+  return { available: true as const, timeseries,
+    note: 'Unique metrics require an All devices / All marketplaces report row. Segmented or suppressed totals remain unavailable.',
+    totals: { installs: timeseries.some(row => row.installs === null) ? null : timeseries.reduce((sum, row) => sum + row.installs!, 0),
+      currentInstalls: latest.currentInstalls, latestDate: latest.date, latestDau: latest.dau, latestWau: latest.wau, latestMau: latest.mau,
+      avgDau: active.length ? Math.round(active.reduce((sum, value) => sum + value, 0) / active.length) : null,
+      peakDau: active.length ? Math.max(...active) : null } };
+}
+
+export async function loadAmazonAppstore(project: string, range = '30d') {
     const days = Math.min(parseInt(range.replace('d', ''), 10) || 30, 90);
 
-    const app = APPS[project];
+    const app = STORE_APPS[project];
     if (!app) {
-      return res.json({ connected: false, reason: `No Amazon Appstore app configured for ${project}` });
+      return ({ connected: false, reason: `No Amazon Appstore app configured for ${project}` });
     }
 
     const clientId = process.env.AMAZON_REPORTING_CLIENT_ID;
@@ -284,15 +266,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       reason: String(err?.message ?? err),
     }));
 
+    return { connected: true, app: { name: app.name, packageName: app.packageName, asin: app.asin }, downloads, stats };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    const data = await loadAmazonAppstore(String(req.query.project || ''), String(req.query.range || '30d'));
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200');
-    res.json({
-      connected: true,
-      app: { name: 'Space Race: 1000 Light Years', packageName: app.packageName, asin: app.asin ?? null },
-      downloads,
-      stats,
-    });
-  } catch (error) {
-    console.error('Amazon Appstore query error:', error);
-    res.status(500).json({ error: 'Failed to fetch Amazon Appstore data' });
-  }
+    res.json(data);
+  } catch { res.status(503).json({ error: 'Amazon Appstore data is unavailable.' }); }
 }

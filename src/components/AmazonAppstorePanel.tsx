@@ -24,27 +24,28 @@ export function AmazonAppstorePanel({ data }: AmazonAppstorePanelProps) {
   }
 
   const { downloads, stats } = data;
+  const hasDownloads = downloads.available && downloads.timeseries.some(day => day.reportAvailable !== false);
 
   return (
     <>
       <div className="metrics-row">
-        {downloads.available ? (
-          <MetricCard label="Downloads" value={downloads.totals.downloads} subtitle="in range · sales units" />
+        {downloads.available && hasDownloads ? (
+          <MetricCard label="Downloads" value={downloads.totals.downloads} subtitle={downloads.complete === false ? "Partial report · sales units" : "in range · sales units"} />
         ) : (
-          <MetricCard label="Downloads" value="—" subtitle={downloads.reason} />
+          <MetricCard label="Downloads" value="—" subtitle={downloads.available ? 'No report for this period yet' : downloads.reason} />
         )}
         {stats.available ? (
           <>
             <MetricCard
               label="Daily Active Users"
-              value={stats.totals.latestDau}
-              subtitle={`${stats.totals.latestDate} · avg ${stats.totals.avgDau}, peak ${stats.totals.peakDau}`}
+              value={stats.totals.latestDau ?? '—'}
+              subtitle={`${stats.totals.latestDate} · avg ${stats.totals.avgDau ?? '—'}, peak ${stats.totals.peakDau ?? '—'}`}
             />
-            <MetricCard label="MAU" value={stats.totals.latestMau} subtitle={`WAU ${stats.totals.latestWau}`} />
-            <MetricCard label="Installs" value={stats.totals.installs} subtitle="unique, in range" />
+            <MetricCard label="MAU" value={stats.totals.latestMau ?? '—'} subtitle={`WAU ${stats.totals.latestWau ?? '—'}`} />
+            <MetricCard label="Installs" value={stats.totals.installs ?? '—'} subtitle="sum of reported daily uniques" />
             <MetricCard
               label="Current Installs"
-              value={stats.totals.currentInstalls}
+              value={stats.totals.currentInstalls ?? '—'}
               subtitle="devices with the app installed"
             />
           </>
@@ -58,7 +59,7 @@ export function AmazonAppstorePanel({ data }: AmazonAppstorePanelProps) {
           <h3>Downloads</h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart
-              data={downloads.timeseries.map((d) => ({ ...d, label: formatDay(d.date) }))}
+              data={downloads.timeseries.map((d) => ({ ...d, downloads: d.reportAvailable === false ? null : d.downloads, label: formatDay(d.date) }))}
               margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
             >
               <defs>
@@ -134,8 +135,9 @@ export function AmazonAppstorePanel({ data }: AmazonAppstorePanelProps) {
         </div>
       )}
 
+      {stats.available && stats.note ? <p className="panel-note">{stats.note}</p> : null}
       <p className="panel-note">
-        Downloads come from the Appstore Reporting API (sales units, near real time). Installs and active
+        Downloads come from the Appstore Reporting API (sales units). Installs and active
         users come from the Download Center CSVs, which Amazon publishes with a 72h (acquisition) and 96h
         (engagement) lag and exposes through no API — refresh them with{' '}
         <code>scripts/ingest-amazon-reports.mjs</code>.

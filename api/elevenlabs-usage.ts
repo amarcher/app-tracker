@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     // Product breakdown (TTS, Conversational AI, etc.)
-    let productBreakdown: Record<string, number> = {};
+    const productBreakdown: Record<string, number> = {};
     if (breakdownRes.ok) {
       const breakdownData = await breakdownRes.json();
       const bUsage: Record<string, number[]> = breakdownData.usage || {};

@@ -24,6 +24,7 @@ export function AppStorePanel({ data }: AppStorePanelProps) {
   }
 
   const { app, reviews, downloads, activity } = data;
+  const hasDownloads = downloads.available && downloads.timeseries.some(day => day.reportAvailable !== false);
 
   return (
     <>
@@ -49,13 +50,13 @@ export function AppStorePanel({ data }: AppStorePanelProps) {
         ) : (
           <MetricCard label="Daily Active Devices" value="—" subtitle={activity?.reason} />
         )}
-        {downloads.available ? (
+        {downloads.available && hasDownloads ? (
           <>
-            <MetricCard label="Downloads" value={downloads.totals.downloads} subtitle="in range" />
-            <MetricCard label="Updates" value={downloads.totals.updates} subtitle="in range" />
+            <MetricCard label="Downloads" value={downloads.totals.downloads} subtitle={downloads.complete === false ? "Partial report" : "in range"} />
+            <MetricCard label="Updates" value={downloads.totals.updates} subtitle={downloads.complete === false ? "Partial report" : "in range"} />
           </>
         ) : (
-          <MetricCard label="Downloads" value="—" subtitle={downloads.reason} />
+          <MetricCard label="Downloads" value="—" subtitle={downloads.available ? 'No report for this period yet' : downloads.reason} />
         )}
       </div>
       {activity?.available && activity.timeseries.length > 1 && (
@@ -111,7 +112,7 @@ export function AppStorePanel({ data }: AppStorePanelProps) {
           <h3>Downloads</h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart
-              data={downloads.timeseries.map((d) => ({ ...d, label: formatDay(d.date) }))}
+              data={downloads.timeseries.map((d) => ({ ...d, downloads: d.reportAvailable === false ? null : d.downloads, updates: d.reportAvailable === false ? null : d.updates, label: formatDay(d.date) }))}
               margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
             >
               <defs>

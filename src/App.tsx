@@ -14,6 +14,7 @@ import { SearchConsolePanel } from './components/SearchConsolePanel';
 import { AppStorePanel } from './components/AppStorePanel';
 import { AmazonAppstorePanel } from './components/AmazonAppstorePanel';
 import { SearchConsoleSurvey } from './components/SearchConsoleSurvey';
+import { Businesses } from './components/Businesses';
 import type { DateRange } from './types';
 import './App.css';
 
@@ -36,12 +37,13 @@ const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boo
   { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz', hasApiRoutes: true, agents: true },
   { value: 'mtg-dash', label: 'MTG Dash', domain: 'mtg.capxun.com', cloudflare: true },
   { value: 'recipe-guide', label: 'Recipe Guide', domain: 'mised.tech', hasApiRoutes: true },
-  { value: 'fable-designer', label: 'Fable Designer', domain: 'fabledesigner.com' },
+  { value: 'fable-designer', label: 'Fable Designer', domain: 'fabledesigner.com', appStore: true, amazonAppstore: true },
 ];
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
 const HOME_VIEW = '__home__';
+const BUSINESSES_VIEW = '__businesses__';
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -57,8 +59,9 @@ function formatCost(usd: number): string {
 }
 
 function App() {
-  const [range, setRange] = useState<DateRange>('1d');
-  const [project, setProject] = useState<string>(HOME_VIEW);
+  const [range, setRange] = useState<DateRange>(() => new URLSearchParams(window.location.search).get('view') === 'businesses' ? '7d' : '1d');
+  const [project, setProject] = useState<string>(() => new URLSearchParams(window.location.search).get('view') === 'businesses' ? BUSINESSES_VIEW : HOME_VIEW);
+  const [businessRefresh, setBusinessRefresh] = useState(0);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
   const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, appStore, amazonAppstore, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog, currentProject?.appStore, currentProject?.amazonAppstore);
@@ -66,7 +69,8 @@ function App() {
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
   const isHomeView = project === HOME_VIEW;
-  const isProjectView = !isElevenLabsView && !isPortfolioView && !isHomeView;
+  const isBusinessesView = project === BUSINESSES_VIEW;
+  const isProjectView = !isElevenLabsView && !isPortfolioView && !isHomeView && !isBusinessesView;
 
   const projectLabels: Record<string, string> = Object.fromEntries(
     PROJECTS.map((p) => [p.value, p.label]),
@@ -83,6 +87,7 @@ function App() {
           >
             <optgroup label="Overview">
               <option value={HOME_VIEW}>Home</option>
+              <option value={BUSINESSES_VIEW}>Our businesses</option>
             </optgroup>
             <optgroup label="Projects">
               {PROJECTS.map((p) => (
@@ -107,7 +112,7 @@ function App() {
               </button>
             ))}
           </div>
-          <button className="refresh-btn" onClick={refetch} disabled={loading}>
+          <button className="refresh-btn" onClick={isBusinessesView ? () => setBusinessRefresh(value => value + 1) : refetch} disabled={!isBusinessesView && loading}>
             {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
@@ -115,7 +120,7 @@ function App() {
 
       {error && (isProjectView || isHomeView) && <div className="error-banner">{error}</div>}
 
-      {isHomeView ? (
+      {isBusinessesView ? <Businesses range={range} refresh={businessRefresh} /> : isHomeView ? (
         overview ? (
           <>
             <HomeOverview
