@@ -101,7 +101,7 @@ describe('fetchDownloads', () => {
   // Dated relative to now so the row always falls inside the 30-day window —
   // a hardcoded date would silently start failing next month.
   const SALE_DATE = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10);
-  const THIS_MONTH = new Date().toISOString().slice(0, 7);
+  const THIS_MONTH = SALE_DATE.slice(0, 7);
   const SALES_CSV = [
     'Marketplace,Transaction Time,Asin,Title,Item Type,Units,Sales Price (Marketplace Currency)',
     `Amazon.com,${SALE_DATE}T09:14:02Z,B0FAKE1234,Space Race,Apps,1,0`,
@@ -129,6 +129,14 @@ describe('fetchDownloads', () => {
     expect(result.available).toBe(true);
     expect(result.totals.downloads).toBe(1);
     expect(result.timeseries.find((d) => d.date === SALE_DATE)?.downloads).toBe(1);
+  });
+
+  it('uses exactly the requested completed days, excluding today', async () => {
+    stubFetch(withReport);
+    const result = await fetchDownloads('B0FAKE1234', 'token', 7);
+    expect(result.timeseries).toHaveLength(7);
+    expect(result.timeseries.at(-1)?.date).toBe(new Date(Date.now() - 86400_000).toISOString().slice(0, 10));
+    expect(result.timeseries[0].date).toBe(new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10));
   });
 
   it('surfaces a 400 that is not "Report not found"', async () => {

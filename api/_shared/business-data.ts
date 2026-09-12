@@ -106,7 +106,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
     } catch { result.fableReason = 'Fable business figures are unavailable. Check the connection in Fable admin.'; }
   })();
   result.apps = await Promise.all(Object.entries(STORE_APPS).map(async ([project, app]) => {
-    const reports = await Promise.allSettled([loadAppStore(project, `${days}d`), loadAmazonAppstore(project, `${days + 1}d`)]);
+    const reports = await Promise.allSettled([loadAppStore(project, `${days}d`), loadAmazonAppstore(project, `${days}d`)]);
     const stores = await Promise.all(reports.map(async (report, index) => {
       const store = index === 0 ? 'apple' : 'amazon';
       const downloads = report.status === 'fulfilled' && 'downloads' in report.value ? report.value.downloads : null;

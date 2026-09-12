@@ -101,7 +101,7 @@ export function isoDate(value: string | undefined): string | null {
 function monthsInRange(days: number): { year: number; month: number }[] {
   const months: { year: number; month: number }[] = [];
   const seen = new Set<string>();
-  for (let i = days; i >= 0; i--) {
+  for (let i = days; i >= 1; i--) {
     const d = new Date(Date.now() - i * 86400_000);
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
     if (seen.has(key)) continue;
@@ -124,6 +124,7 @@ function monthsInRange(days: number): { year: number; month: number }[] {
 export async function fetchDownloads(asin: string | undefined, token: string, days: number) {
   if (!asin || !/^[A-Z0-9]{10}$/.test(asin)) throw new Error('An explicit app ASIN is required');
   const since = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
+  const through = new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
   const byDate = new Map<string, number>();
   const coveredMonths = new Set<string>();
 
@@ -159,7 +160,7 @@ export async function fetchDownloads(asin: string | undefined, token: string, da
       const itemType = (pick(row, 'Item Type') ?? '').toLowerCase();
       if (itemType.includes('iap') || itemType.includes('subscription') || itemType.includes('in-app')) continue;
       const date = isoDate(pick(row, 'Transaction Time', 'Transaction Date', 'Date'));
-      if (!date || date < since) continue;
+      if (!date || date < since || date > through) continue;
       const units = pick(row, 'Units');
       if (!units?.trim() || !Number.isSafeInteger(Number(units))) throw new Error('Unrecognized app units in report');
       byDate.set(date, (byDate.get(date) ?? 0) + Number(units));
@@ -167,7 +168,7 @@ export async function fetchDownloads(asin: string | undefined, token: string, da
   }
 
   const timeseries: { date: string; downloads: number; reportAvailable: boolean }[] = [];
-  for (let i = days; i >= 0; i--) {
+  for (let i = days; i >= 1; i--) {
     const date = new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10);
     timeseries.push({ date, downloads: byDate.get(date) ?? 0, reportAvailable: coveredMonths.has(date.slice(0, 7)) });
   }
