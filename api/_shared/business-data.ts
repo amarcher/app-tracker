@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { loadAppStore } from '../app-store.js';
 import { loadAmazonAppstore } from '../amazon-appstore.js';
-import { STORE_APPS } from './store-apps.js';
+import { STORE_APPS, storeSource, trustedLegacyStore } from './store-apps.js';
 import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, StoreDay } from '../../src/types/business.js';
 
 const DAY = 86400_000;
@@ -37,22 +37,37 @@ export async function ensureBusinessStorage() {
     downloads INTEGER NOT NULL, updates INTEGER, redownloads INTEGER,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY(project, store, date)
   )`;
+  // Add provenance without deleting the earlier, misattributed Fable/Amazon observations.
+  await db`ALTER TABLE store_download_days ADD COLUMN IF NOT EXISTS source TEXT`;
 }
 
 async function archiveStore(project: string, store: BusinessStore) {
   if (!process.env.DATABASE_URL) return;
   const db = neon(process.env.DATABASE_URL);
+  const source = storeSource(project, store.store);
+  store.source = source;
   // One SQL statement per report; reruns replace observations, never add them.
-  if (store.timeseries.length) await db`INSERT INTO store_download_days (project, store, date, downloads, updates, redownloads)
+  if (store.timeseries.length) await db`INSERT INTO store_download_days (project, store, date, downloads, updates, redownloads, source)
     SELECT ${project}, ${store.store}, (r->>'date')::date, (r->>'downloads')::integer,
-      (r->>'updates')::integer, (r->>'redownloads')::integer
+      (r->>'updates')::integer, (r->>'redownloads')::integer, ${source}
     FROM jsonb_array_elements(${JSON.stringify(store.timeseries)}::jsonb) r
     ON CONFLICT (project, store, date) DO UPDATE SET downloads=EXCLUDED.downloads,
-      updates=EXCLUDED.updates, redownloads=EXCLUDED.redownloads, updated_at=now()`;
+      updates=EXCLUDED.updates, redownloads=EXCLUDED.redownloads, source=EXCLUDED.source, updated_at=now()`;
   const [history] = await db`SELECT min(date)::text AS since, sum(downloads)::integer AS downloads
-    FROM store_download_days WHERE project=${project} AND store=${store.store}`;
+    FROM store_download_days WHERE project=${project} AND store=${store.store}
+      AND (source=${source} OR (source IS NULL AND ${trustedLegacyStore(project, store.store)}))`;
   store.recordedSince = history?.since ?? null;
   store.recordedDownloads = history?.downloads ?? null;
+}
+
+/** Old cached snapshots must not bypass corrected account attribution. */
+export function validateCachedStoreSources(report: BusinessSummary): BusinessSummary {
+  return { ...report, apps: report.apps.map(app => ({ ...app, stores: app.stores.map(store => {
+    if (store.source === storeSource(app.project, store.store) || (!store.source && trustedLegacyStore(app.project, store.store))) return store;
+    return { ...store, available: false, timeseries: [], downloads: null, latest: null, complete: false,
+      recordedSince: null, recordedDownloads: null,
+      reason: 'The earlier report used a different developer account. A report from this app’s account is required.' };
+  }) })) };
 }
 
 export async function cachedBusiness(days: number): Promise<BusinessSummary | null> {
@@ -60,7 +75,7 @@ export async function cachedBusiness(days: number): Promise<BusinessSummary | nu
   try {
     const db = neon(process.env.DATABASE_URL);
     const [row] = await db`SELECT payload FROM business_metric_snapshots WHERE key=${`business:${days}`}`;
-    return row?.payload as BusinessSummary ?? null;
+    return row?.payload ? validateCachedStoreSources(row.payload as BusinessSummary) : null;
   } catch { return null; }
 }
 
@@ -111,7 +126,9 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
       const store = index === 0 ? 'apple' : 'amazon';
       const downloads = report.status === 'fulfilled' && 'downloads' in report.value ? report.value.downloads : null;
       const summary = storeSummary(store, downloads?.available && "timeseries" in downloads ? downloads.timeseries : [], dates);
-      if (!summary.available) summary.reason = 'No store report is available for this period.';
+      summary.source = storeSource(project, store);
+      if (!summary.available) summary.reason = report.status === 'fulfilled' && 'connectionReason' in report.value && report.value.connectionReason
+        ? report.value.connectionReason : 'No store report is available for this period.';
       if (archive) { try { await archiveStore(project, summary); } catch { summary.reason = summary.available ? 'Live report received; history could not be saved.' : 'No current store report is available; history could not be loaded.'; } }
       return summary;
     }));

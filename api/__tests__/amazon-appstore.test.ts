@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { deflateRawSync, gzipSync } from 'node:zlib';
-import { parseCsv, pick, unpackReport, isoDate, fetchDownloads, summarizeIngestedStats } from '../amazon-appstore';
+import { parseCsv, pick, unpackReport, isoDate, fetchDownloads, summarizeIngestedStats, loadAmazonAppstore } from '../amazon-appstore';
 
 // Amazon hands back a zipped CSV; build one the way a zip writer would so the
 // hand-rolled reader is exercised against a real local file header.
@@ -202,5 +202,44 @@ describe('safe Amazon attribution and totals', () => {
     ]);
     expect(report.totals.latestDau).toBeNull();
     expect(report.totals.installs).toBeNull();
+  });
+});
+
+describe('separate Amazon developer accounts', () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+  function credentials(fableId = '', fableSecret = '') {
+    vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('AMAZON_REPORTING_CLIENT_ID', 'aces-id');
+    vi.stubEnv('AMAZON_REPORTING_CLIENT_SECRET', 'aces-secret');
+    vi.stubEnv('FABLE_AMAZON_REPORTING_CLIENT_ID', fableId);
+    vi.stubEnv('FABLE_AMAZON_REPORTING_CLIENT_SECRET', fableSecret);
+  }
+  it('does not query Space Race when Fable reporting is not connected', async () => {
+    credentials();
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    const result = await loadAmazonAppstore('fable-designer', '7d');
+    expect(result.downloads).toMatchObject({ available: false, reason: expect.stringContaining('not connected') });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('rejects copying the Space Race client into the Fable configuration', async () => {
+    credentials('aces-id', 'aces-secret');
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    const result = await loadAmazonAppstore('fable-designer', '7d');
+    expect(result.downloads).toMatchObject({ available: false, reason: expect.stringContaining('own Amazon developer account') });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('authenticates Fable reports with only the Fable credential pair', async () => {
+    credentials('fable-id', 'fable-secret');
+    const fetcher = vi.fn(async (url: string) => url.includes('/auth/o2/token')
+      ? { ok: true, json: async () => ({ access_token: 'fable-token' }) }
+      : { status: 404 });
+    vi.stubGlobal('fetch', fetcher);
+    const result = await loadAmazonAppstore('fable-designer', '7d');
+    const calls = vi.mocked(fetch).mock.calls;
+    const body = calls[0][1]?.body as URLSearchParams;
+    expect(body.get('client_id')).toBe('fable-id');
+    expect(body.get('client_secret')).toBe('fable-secret');
+    expect(calls[1][1]?.headers).toEqual({ Authorization: 'Bearer fable-token' });
+    expect(result.downloads).toMatchObject({ available: true, complete: false });
   });
 });

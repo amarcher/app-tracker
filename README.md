@@ -58,9 +58,24 @@ Requires a GA4 service account key file (`ga4-key.json`) — see the SEO & Obser
 
 ## Amazon Appstore reports
 
-Downloads arrive automatically through the Appstore Reporting API. Installs and active
-users do not: Amazon publishes those only as Download Center CSVs, with no API of any
-kind. Once a month (or whenever you want them fresh):
+Downloads arrive through the Appstore Reporting API. Space Race uses the Aces Up Labs
+account's `AMAZON_REPORTING_CLIENT_ID` / `AMAZON_REPORTING_CLIENT_SECRET`. Fable Reader
+uses its separate Fable Designer LLC account's `FABLE_AMAZON_REPORTING_CLIENT_ID` /
+`FABLE_AMAZON_REPORTING_CLIENT_SECRET`. Attach a Reporting API security profile in
+each app's own developer account. A missing Fable pair does not reuse Space Race's
+credentials; using the same client ID for both is rejected.
+
+The history records the account configuration and ASIN with each observation. Legacy
+Fable/Amazon observations collected with Space Race's account are excluded from totals
+and cached responses; other verified store history is retained. Missing reports and
+missing account connections remain unavailable, rather than becoming zero downloads.
+
+Installs and active users have no Reporting API. Amazon's current [acquisition
+reports](https://developer.amazon.com/docs/reports-promo/acquisition-reports.html)
+cover Fire TV, so they do not supply installed-device counts for these Fire tablet
+apps. [Engagement reports](https://developer.amazon.com/docs/reports-promo/engagement-reports.html)
+can include Fire tablet active users, subject to Amazon's reporting lag and privacy
+suppression. If a supported report is available in Download Center:
 
 1. Developer Console > **My Reports > Download Center** > Acquisition Reports and
    Engagement Reports, and download the month you want.
