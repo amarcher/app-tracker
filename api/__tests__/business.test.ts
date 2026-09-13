@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
 import { businessAccess, sessionCookie, verifyTicket } from '../_shared/business-access';
 import { storeSummary, summarizeBusinessDays, validBusinessReport } from '../_shared/business-data';
-import { appleCredentials, mapBounded, STORE_APPS } from '../_shared/store-apps';
+import { amazonCredentials, appleCredentials, mapBounded, STORE_APPS } from '../_shared/store-apps';
 import type { BusinessDay } from '../../src/types/business';
 const secret = 'private-test-business-read-token-123456789';
 const ticket = (purpose: string, exp: number) => {
@@ -65,4 +65,11 @@ it('does not reuse the personal Apple team credentials for Fable Designer LLC', 
   expect(appleCredentials('space-race', env).keyId).toBe('personal-key');
   expect(appleCredentials('fable-designer', env).keyId).toBe('llc-key');
   expect(appleCredentials('fable-designer', env).vendorNumber).toBeUndefined();
+});
+
+it('keeps Amazon client IDs and secrets within the selected developer account', () => {
+  const env = { AMAZON_REPORTING_CLIENT_ID: 'aces-id', AMAZON_REPORTING_CLIENT_SECRET: 'aces-secret', FABLE_AMAZON_REPORTING_CLIENT_ID: 'fable-id' };
+  expect(amazonCredentials('space-race', env)).toEqual({ clientId: 'aces-id', clientSecret: 'aces-secret' });
+  expect(amazonCredentials('fable-designer', env)).toEqual({ clientId: 'fable-id', clientSecret: undefined });
+  expect(amazonCredentials('unknown', env)).toEqual({ clientId: undefined, clientSecret: undefined });
 });

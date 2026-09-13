@@ -13,6 +13,7 @@ export type BusinessTotals = Omit<BusinessDay, 'date'>;
 export type StoreDay = { date: string; downloads: number; updates?: number; redownloads?: number; reportAvailable?: boolean };
 export type BusinessStore = {
   store: 'apple' | 'amazon';
+  source?: string;
   available: boolean;
   reason?: string;
   timeseries: StoreDay[];

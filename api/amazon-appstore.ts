@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { gunzipSync, inflateRawSync } from 'node:zlib';
 
-import { STORE_APPS } from './_shared/store-apps.js';
+import { amazonCredentials, STORE_APPS } from './_shared/store-apps.js';
 
 const LWA_TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 const REPORTING_SCOPE = 'adx_reporting::appstore:marketer';
@@ -250,16 +250,19 @@ export async function loadAmazonAppstore(project: string, range = '30d') {
       return ({ connected: false, reason: `No Amazon Appstore app configured for ${project}` });
     }
 
-    const clientId = process.env.AMAZON_REPORTING_CLIENT_ID;
-    const clientSecret = process.env.AMAZON_REPORTING_CLIENT_SECRET;
+    const { clientId, clientSecret } = amazonCredentials(project);
+    const sharedAccount = project === 'fable-designer' && !!clientId && clientId === process.env.AMAZON_REPORTING_CLIENT_ID;
+    const connectionReason = sharedAccount
+      ? 'Fable Reader needs reporting credentials from its own Amazon developer account.'
+      : !clientId || !clientSecret ? `${app.name}'s Amazon developer account is not connected.` : undefined;
 
-    const downloads = clientId && clientSecret
+    const downloads = clientId && clientSecret && !sharedAccount
       ? await getLwaToken(clientId, clientSecret)
           .then((token) => fetchDownloads(app.asin, token, days))
           .catch((err) => ({ available: false as const, reason: String(err?.message ?? err) }))
       : {
           available: false as const,
-          reason: 'AMAZON_REPORTING_CLIENT_ID/SECRET not configured — attach a security profile to the Reporting API in the Developer Console',
+          reason: connectionReason!,
         };
 
     const stats = await fetchIngestedStats(project, days).catch((err) => ({
@@ -267,7 +270,7 @@ export async function loadAmazonAppstore(project: string, range = '30d') {
       reason: String(err?.message ?? err),
     }));
 
-    return { connected: true, app: { name: app.name, packageName: app.packageName, asin: app.asin }, downloads, stats };
+    return { connected: true, connectionReason, app: { name: app.name, packageName: app.packageName, asin: app.asin }, downloads, stats };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

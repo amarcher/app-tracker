@@ -52,7 +52,7 @@ export function Businesses({ range, refresh }: { range: DateRange; refresh: numb
       {!store.complete ? <p className="business-freshness">Some reporting dates are not available yet.</p> : null}
       {store.recordedSince ? <p>{store.recordedDownloads?.toLocaleString()} recorded since {store.recordedSince}</p> : null}
       {store.reason ? <p>{store.reason}</p> : null}
-      <p className="business-freshness">{store.store === 'apple' ? 'First acquisitions; redownloads and updates are separate.' : 'Acquisitions from store reports. Installed-device counts use imported reports.'}</p>
+      <p className="business-freshness">{store.store === 'apple' ? 'First acquisitions; redownloads and updates are separate.' : 'First acquisitions from sales reports. This does not count currently installed devices.'}</p>
     </div>)}</div></section>)}
   </div>;
 }
