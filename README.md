@@ -125,3 +125,25 @@ install and engagement CSVs may lag by 72/96 hours and remain a separate source.
 Validation: `npm run build`, `npm run lint`, and `npm test`. The tests cover exact
 app attribution, report gaps, nullable values, importer filtering, auth boundaries,
 signed handoffs, and bounded report concurrency.
+
+### Fable Reader on Google Play
+
+The private Businesses view and household feed collect Fable Reader's Google Play
+install statistics with a dedicated service account (`FABLE_PLAY_KEY_JSON`). Grant
+only **View app information and download bulk reports (read-only)** in the Fable
+Designer Play Console account. Google requires this permission at account scope;
+financial or publishing access is unnecessary. This connection does not fall back
+to GA4, Apple, Amazon, or another app's credentials.
+
+Set `FABLE_PLAY_REPORT_BUCKET` to the bucket copied from **Download reports →
+Statistics → Copy Cloud Storage URI**. A newly published account may have no
+exports or copy button yet; leave the setting unset until Google supplies it.
+Only `stats/installs/installs_com.fabledesigner.reader_YYYYMM_country.csv` is read.
+[Google documents the export format and 3–7 day delay](https://support.google.com/googleplay/android-developer/answer/6135870).
+
+The card labels Google's **Daily User Installs** as user installs. Daily counts
+are not deduplicated people across a week or month. The optional installed-device
+figure is the latest day's **Installs on active devices** (devices online within
+30 days), never a sum across days. Dates use Pacific time. Missing/suppressed days
+remain pending, explicit reported zeroes remain zeroes, and source-tagged daily
+history is replaced on repeat collections to accommodate revised exports.
