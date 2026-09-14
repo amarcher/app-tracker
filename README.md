@@ -9,7 +9,7 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 - **Traffic** — Pageviews, sessions, users, top pages, and traffic sources per project via Google Analytics 4 Data API
 - **API Usage** — Per-project Anthropic token consumption and ElevenLabs character usage, self-instrumented via Neon Postgres
 - **ElevenLabs Account** — Account-wide character quota, product breakdown, and daily usage trends
-- **App stores** — iOS downloads, active devices, rating and reviews via App Store Connect; Amazon Appstore downloads via the Appstore Reporting API, with installs and DAU/WAU/MAU ingested from Download Center CSVs
+- **App stores** — iOS downloads, active devices, rating and reviews via App Store Connect; Amazon Appstore downloads via the Appstore Reporting API, with installs and DAU/WAU/MAU ingested from Download Center CSVs; Google Play installs and active devices from the Play Console statistics export in Cloud Storage
 - **Our businesses** — private Fable book creation, paid finishes, printed copies, cash revenue, and separate Apple/Amazon download reports for Fable Reader and Space Race
 
 ## Monitored Projects
@@ -24,7 +24,7 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 | Superbowl Squares | superbowl-squares.com | — |
 | Tabbit Rabbit | tabbitrabbit.com | Anthropic |
 | Mark My Words | archer.biz | Anthropic + ElevenLabs TTS |
-| Space Race | game.spaceexplorer.tech | App Store Connect + Amazon Appstore |
+| Space Race | game.spaceexplorer.tech | App Store Connect + Amazon Appstore + Google Play |
 | Fable Designer / Fable Reader | fabledesigner.com | Fable aggregate feed + App Store Connect + Amazon Appstore |
 
 ## Architecture
@@ -147,3 +147,15 @@ figure is the latest day's **Installs on active devices** (devices online within
 30 days), never a sum across days. Dates use Pacific time. Missing/suppressed days
 remain pending, explicit reported zeroes remain zeroes, and source-tagged daily
 history is replaced on repeat collections to accommodate revised exports.
+
+### Space Race on Google Play
+
+Space Race (`tech.spaceexplorer.spacerace`) publishes from the same Fable Designer Play
+org account, so its public project view and its Businesses card read the same
+`FABLE_PLAY_KEY_JSON` / `FABLE_PLAY_REPORT_BUCKET` pair and the same collector as Fable
+Reader — only `stats/installs/installs_tech.spaceexplorer.spacerace_YYYYMM_country.csv`
+differs. Nothing new to configure beyond confirming the reporting service account can
+see Space Race in Play Console (if its "View app information and download bulk reports"
+grant is app-scoped, add Space Race to it). The public panel shows user installs, device
+installs and the latest day's active device installs; these are installs, not launches,
+because the child-directed Play build ships no analytics.

@@ -13,6 +13,7 @@ import { PosthogChart } from './components/PosthogChart';
 import { SearchConsolePanel } from './components/SearchConsolePanel';
 import { AppStorePanel } from './components/AppStorePanel';
 import { AmazonAppstorePanel } from './components/AmazonAppstorePanel';
+import { GooglePlayPanel } from './components/GooglePlayPanel';
 import { SearchConsoleSurvey } from './components/SearchConsoleSurvey';
 import { Businesses } from './components/Businesses';
 import type { DateRange } from './types';
@@ -25,10 +26,10 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '90d', label: '90 days' },
 ];
 
-const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean; appStore?: boolean; amazonAppstore?: boolean }[] = [
+const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean; appStore?: boolean; amazonAppstore?: boolean; googlePlay?: boolean }[] = [
   { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true, posthog: true },
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech', appStore: true, amazonAppstore: true },
+  { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech', appStore: true, amazonAppstore: true, googlePlay: true },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true, posthog: true },
   { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
@@ -64,7 +65,7 @@ function App() {
   const [businessRefresh, setBusinessRefresh] = useState(0);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
-  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, appStore, amazonAppstore, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog, currentProject?.appStore, currentProject?.amazonAppstore);
+  const { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, appStore, amazonAppstore, googlePlay, loading, error, refetch } = useDashboardData(range, project, currentProject?.cloudflare, currentProject?.agents, currentProject?.posthog, currentProject?.appStore, currentProject?.amazonAppstore, currentProject?.googlePlay);
 
   const isElevenLabsView = project === ELEVENLABS_VIEW;
   const isPortfolioView = project === PORTFOLIO_VIEW;
@@ -300,6 +301,14 @@ function App() {
               <h2>Amazon Appstore</h2>
               <AmazonAppstorePanel data={amazonAppstore} />
               {loading && !amazonAppstore && <div className="loading">Loading Amazon Appstore data...</div>}
+            </section>
+          )}
+
+          {currentProject?.googlePlay && (
+            <section className="section">
+              <h2>Google Play</h2>
+              <GooglePlayPanel data={googlePlay} />
+              {loading && !googlePlay && <div className="loading">Loading Google Play data...</div>}
             </section>
           )}
 

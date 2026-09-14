@@ -30,7 +30,7 @@ it('retains recorded download totals when the selected period has no store repor
   });
 
   const report = await collectBusiness(7, true);
-  expect(query).toHaveBeenCalledTimes(5);
+  expect(query).toHaveBeenCalledTimes(6);
   for (const app of report.apps) for (const store of app.stores) {
     expect(store.downloads).toBeNull();
     expect(store.timeseries).toEqual([]);

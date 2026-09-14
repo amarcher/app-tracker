@@ -1,6 +1,7 @@
 /** Public store identities; credentials remain in server environment variables. */
 export const STORE_APPS: Record<string, { name: string; appleId: string; asin: string; packageName: string; ascPrefix: string; amazonPrefix: string; googlePrefix?: string }> = {
-  'space-race': { name: 'Space Race: 1000 Light-Years', appleId: '6788064058', asin: 'B0GXHBHD78', packageName: 'tech.spaceexplorer.spacerace', ascPrefix: 'ASC', amazonPrefix: 'AMAZON_REPORTING' },
+  // Both apps publish from the same Fable Designer Play org account, so they share its report bucket and reporting service account.
+  'space-race': { name: 'Space Race: 1000 Light-Years', appleId: '6788064058', asin: 'B0GXHBHD78', packageName: 'tech.spaceexplorer.spacerace', ascPrefix: 'ASC', amazonPrefix: 'AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY' },
   'fable-designer': { name: 'Fable Reader by Fable Designer', appleId: '6807123917', asin: 'B0HGTXJ7QQ', packageName: 'com.fabledesigner.reader', ascPrefix: 'FABLE_ASC', amazonPrefix: 'FABLE_AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY' },
 };
 
