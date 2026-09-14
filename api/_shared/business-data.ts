@@ -1,8 +1,9 @@
 import { neon } from '@neondatabase/serverless';
 import { loadAppStore } from '../app-store.js';
 import { loadAmazonAppstore } from '../amazon-appstore.js';
+import { loadGooglePlay } from './google-play.js';
 import { STORE_APPS, storeSource, trustedLegacyStore } from './store-apps.js';
-import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, StoreDay } from '../../src/types/business.js';
+import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, StoreDay, StoreName } from '../../src/types/business.js';
 
 const DAY = 86400_000;
 export const dayAt = (delta: number, now = Date.now()) => new Date(now + delta * DAY).toISOString().slice(0, 10);
@@ -12,7 +13,7 @@ export function summarizeBusinessDays(rows: BusinessDay[]): BusinessTotals {
   return { booksCreated: count('booksCreated'), paidFinishes: count('paidFinishes'), subscriptionFinishes: count('subscriptionFinishes'), complimentaryFinishes: count('complimentaryFinishes'), printedCopies: count('printedCopies'), revenueCents: money('revenueCents'), providerSpendCents: money('providerSpendCents'), marginCents: money('marginCents') };
 }
 
-export function storeSummary(store: 'apple' | 'amazon', rows: StoreDay[], expectedDates: string[]): BusinessStore {
+export function storeSummary(store: StoreName, rows: StoreDay[], expectedDates: string[]): BusinessStore {
   const timeseries = rows.filter(row => expectedDates.includes(row.date) && row.reportAvailable !== false)
     .sort((a, b) => a.date.localeCompare(b.date));
   if (new Set(timeseries.map(row => row.date)).size !== timeseries.length || timeseries.some(row => !Number.isSafeInteger(row.downloads))) throw new Error('Invalid store dates or counts');
@@ -20,7 +21,7 @@ export function storeSummary(store: 'apple' | 'amazon', rows: StoreDay[], expect
   return { store, available: timeseries.length > 0, timeseries,
     downloads: timeseries.length ? timeseries.reduce((sum, row) => sum + row.downloads, 0) : null,
     latest: timeseries.at(-1) ?? null, complete,
-    reportingTimezone: store === 'apple' ? 'America/Los_Angeles' : 'UTC',
+    reportingTimezone: store === 'amazon' ? 'UTC' : 'America/Los_Angeles',
     recordedSince: null, recordedDownloads: null };
 }
 
@@ -121,9 +122,11 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
     } catch { result.fableReason = 'Fable business figures are unavailable. Check the connection in Fable admin.'; }
   })();
   result.apps = await Promise.all(Object.entries(STORE_APPS).map(async ([project, app]) => {
-    const reports = await Promise.allSettled([loadAppStore(project, `${days}d`), loadAmazonAppstore(project, `${days}d`)]);
+    const names: StoreName[] = app.googlePrefix ? ['apple', 'amazon', 'google'] : ['apple', 'amazon'];
+    const reports = await Promise.allSettled(names.map(store => store === 'apple' ? loadAppStore(project, `${days}d`)
+      : store === 'amazon' ? loadAmazonAppstore(project, `${days}d`) : loadGooglePlay(project, `${days}d`)));
     const stores = await Promise.all(reports.map(async (report, index) => {
-      const store = index === 0 ? 'apple' : 'amazon';
+      const store = names[index];
       const downloads = report.status === 'fulfilled' && 'downloads' in report.value ? report.value.downloads : null;
       const summary = storeSummary(store, downloads?.available && "timeseries" in downloads ? downloads.timeseries : [], dates);
       summary.source = storeSource(project, store);

@@ -703,7 +703,7 @@ tr:hover td {
 .business-heading a, .business-link { color: var(--accent-cyan); text-underline-offset: 4px; }
 .business-link { display: inline-block; margin-top: 18px; }
 .business-secondary { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 18px 0; color: var(--text-secondary); font-size: 14px; }
-.business-stores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.business-stores { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 28px; }
 .business-store { min-width: 0; border-top: 1px solid var(--border); padding-top: 20px; }
 .business-store h3 { color: var(--text-primary); }
 .business-downloads { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; font-size: 42px; line-height: 1.2; margin: 12px 0; font-weight: 650; font-variant-numeric: tabular-nums; }

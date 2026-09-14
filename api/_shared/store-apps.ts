@@ -1,7 +1,7 @@
 /** Public store identities; credentials remain in server environment variables. */
-export const STORE_APPS: Record<string, { name: string; appleId: string; asin: string; packageName: string; ascPrefix: string; amazonPrefix: string }> = {
+export const STORE_APPS: Record<string, { name: string; appleId: string; asin: string; packageName: string; ascPrefix: string; amazonPrefix: string; googlePrefix?: string }> = {
   'space-race': { name: 'Space Race: 1000 Light-Years', appleId: '6788064058', asin: 'B0GXHBHD78', packageName: 'tech.spaceexplorer.spacerace', ascPrefix: 'ASC', amazonPrefix: 'AMAZON_REPORTING' },
-  'fable-designer': { name: 'Fable Reader by Fable Designer', appleId: '6807123917', asin: 'B0HGTXJ7QQ', packageName: 'com.fabledesigner.reader', ascPrefix: 'FABLE_ASC', amazonPrefix: 'FABLE_AMAZON_REPORTING' },
+  'fable-designer': { name: 'Fable Reader by Fable Designer', appleId: '6807123917', asin: 'B0HGTXJ7QQ', packageName: 'com.fabledesigner.reader', ascPrefix: 'FABLE_ASC', amazonPrefix: 'FABLE_AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY' },
 };
 
 export async function mapBounded<T, R>(items: T[], worker: (item: T) => Promise<R>, concurrency = 3): Promise<R[]> {
@@ -30,11 +30,12 @@ export function amazonCredentials(project: string, env = process.env) {
 }
 
 /** Public provenance, not a key or token. Legacy Fable/Amazon rows used the wrong account. */
-export function storeSource(project: string, store: 'apple' | 'amazon') {
+export function storeSource(project: string, store: 'apple' | 'amazon' | 'google') {
   const app = STORE_APPS[project];
   if (!app) throw new Error('Unknown store project');
+  if (store === 'google') return `google:${app.googlePrefix}:${app.packageName}`;
   return `${store}:${store === 'apple' ? app.ascPrefix : app.amazonPrefix}:${store === 'apple' ? app.appleId : app.asin}`;
 }
 
-export const trustedLegacyStore = (project: string, store: 'apple' | 'amazon') =>
-  !!STORE_APPS[project] && !(project === 'fable-designer' && store === 'amazon');
+export const trustedLegacyStore = (project: string, store: 'apple' | 'amazon' | 'google') =>
+  !!STORE_APPS[project] && store !== 'google' && !(project === 'fable-designer' && store === 'amazon');

@@ -10,9 +10,10 @@ export type BusinessDay = {
   marginCents: number | null;
 };
 export type BusinessTotals = Omit<BusinessDay, 'date'>;
-export type StoreDay = { date: string; downloads: number; updates?: number; redownloads?: number; reportAvailable?: boolean };
+export type StoreName = 'apple' | 'amazon' | 'google';
+export type StoreDay = { date: string; downloads: number; updates?: number; redownloads?: number; reportAvailable?: boolean; deviceInstalls?: number | null; activeDeviceInstalls?: number | null };
 export type BusinessStore = {
-  store: 'apple' | 'amazon';
+  store: StoreName;
   source?: string;
   available: boolean;
   reason?: string;

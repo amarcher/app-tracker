@@ -46,13 +46,14 @@ export function Businesses({ range, refresh }: { range: DateRange; refresh: numb
       </> : <p>{data.fableReason}</p>}
     </section>
     {data.apps.map(app => <section className="section" key={app.project}><h2>{app.name}</h2><div className="business-stores">{app.stores.map(store => <div className="business-store" key={store.store}>
-      <h3>{store.store === 'apple' ? 'Apple App Store' : 'Amazon Appstore'}</h3>
-      <div className="business-downloads">{store.downloads === null ? '—' : store.downloads.toLocaleString()}<span>new downloads</span></div>
+      <h3>{{ apple: 'Apple App Store', amazon: 'Amazon Appstore', google: 'Google Play' }[store.store]}</h3>
+      <div className="business-downloads">{store.downloads === null ? '—' : store.downloads.toLocaleString()}<span>{store.store === 'google' ? 'user installs' : 'new downloads'}</span></div>
       <p>{store.latest ? `${store.timeseries[0].date}–${store.latest.date} · ${store.reportingTimezone}` : 'Awaiting a store report'}</p>
       {!store.complete ? <p className="business-freshness">Some reporting dates are not available yet.</p> : null}
       {store.recordedSince ? <p>{store.recordedDownloads?.toLocaleString()} recorded since {store.recordedSince}</p> : null}
       {store.reason ? <p>{store.reason}</p> : null}
-      <p className="business-freshness">{store.store === 'apple' ? 'First acquisitions; redownloads and updates are separate.' : 'First acquisitions from sales reports. This does not count currently installed devices.'}</p>
+      {store.store === 'google' && store.latest?.activeDeviceInstalls != null ? <p>{store.latest.activeDeviceInstalls.toLocaleString()} active devices with the app installed on {store.latest.date}</p> : null}
+      <p className="business-freshness">{store.store === 'apple' ? 'First acquisitions; redownloads and updates are separate.' : store.store === 'amazon' ? 'First acquisitions from sales reports. This does not count currently installed devices.' : 'Google’s daily user installs, summed over reported dates. This is not a count of unique people across the period. Active devices were online within 30 days. Exports usually arrive 3–7 days later.'}</p>
     </div>)}</div></section>)}
   </div>;
 }

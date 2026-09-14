@@ -19,7 +19,7 @@ it('retains recorded download totals when the selected period has no store repor
       expect(parts.join('')).toContain('source IS NULL');
       const [project, store, source, acceptLegacy] = values;
       expect(source).toBe(storeSource(String(project), store as 'apple' | 'amazon'));
-      if (project === 'fable-designer' && store === 'amazon') {
+      if (store === 'google' || project === 'fable-designer' && store === 'amazon') {
         expect(acceptLegacy).toBe(false);
         return [{ since: null, downloads: null }];
       }
@@ -30,11 +30,11 @@ it('retains recorded download totals when the selected period has no store repor
   });
 
   const report = await collectBusiness(7, true);
-  expect(query).toHaveBeenCalledTimes(4);
+  expect(query).toHaveBeenCalledTimes(5);
   for (const app of report.apps) for (const store of app.stores) {
     expect(store.downloads).toBeNull();
     expect(store.timeseries).toEqual([]);
-    const misattributed = app.project === 'fable-designer' && store.store === 'amazon';
+    const misattributed = store.store === 'google' || app.project === 'fable-designer' && store.store === 'amazon';
     expect(store.recordedSince).toBe(misattributed ? null : '2026-08-01');
     expect(store.recordedDownloads).toBe(misattributed ? null : 12);
   }
