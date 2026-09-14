@@ -352,4 +352,31 @@ export interface AmazonAppstoreResponse {
     | { available: false; reason: string };
 }
 
+export interface GooglePlayInstallDay {
+  date: string;
+  downloads: number;
+  updates?: number;
+  reportAvailable?: boolean;
+  deviceInstalls?: number | null;
+  activeDeviceInstalls?: number | null;
+}
+
+export interface GooglePlayResponse {
+  connected: boolean;
+  reason?: string;
+  app: { name: string; packageName: string } | null;
+  installs:
+    | {
+        available: true;
+        timeseries: GooglePlayInstallDay[];
+        totals: {
+          userInstalls: number;
+          deviceInstalls: number | null;
+          latestDate: string;
+          latestActiveDeviceInstalls: number | null;
+        };
+      }
+    | { available: false; reason: string };
+}
+
 export type DateRange = '1d' | '7d' | '30d' | '90d';

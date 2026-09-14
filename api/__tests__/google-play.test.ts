@@ -41,7 +41,8 @@ it('rejects another package, duplicate countries, invalid counts and dates', () 
 it('requires Fable credentials explicitly and never falls back to other Google accounts', () => {
   const env = { GA4_KEY_JSON: 'other-account', GOOGLE_PLAY_KEY_JSON: 'other-play', FABLE_PLAY_KEY_JSON: 'fable' };
   expect(googlePlayCredentials('fable-designer', env)).toEqual({ keyJson: 'fable', bucket: undefined });
-  expect(googlePlayCredentials('space-race', env)).toEqual({ keyJson: undefined, bucket: undefined });
+  expect(googlePlayCredentials('space-race', env)).toEqual({ keyJson: 'fable', bucket: undefined }); // same Play org account
+  expect(googlePlayCredentials('animal-penpals', env)).toEqual({ keyJson: undefined, bucket: undefined });
 });
 
 function configure() {

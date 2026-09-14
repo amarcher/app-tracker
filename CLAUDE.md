@@ -36,6 +36,8 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 
    The Acquisition *dashboard* in the console also warns it covers **only Fire TV**; Space Race is Fire-tablet-only, so trust the CSVs over that dashboard. Note that the Amazon build ships with **no analytics** (Amazon's child-directed COPPA policy), so these reports are the only usage signal that exists for it.
 
+7. **Google Play** — Android install stats for projects with `googlePlay: true` (currently Space Race), and a `google` store in the private Businesses view for every `STORE_APPS` entry with a `googlePrefix` (Fable Reader and Space Race). Play has no query API for installs: Play Console exports statistics as UTF-16 CSVs into a Cloud Storage bucket, and `api/_shared/google-play.ts` (`loadGooglePlay(project, range)`) reads `stats/installs/installs_<package>_<YYYYMM>_country.csv` through the GCS JSON API with `<googlePrefix>_KEY_JSON` / `<googlePrefix>_REPORT_BUCKET`, summing per day across countries; days Google has not published yet stay missing rather than zero, and exports arrive 3–7 days late. Space Race and Fable Reader publish from the same Fable Designer Play org account, so Space Race uses `googlePrefix: 'FABLE_PLAY'` and shares that bucket and service account. `api/google-play.ts` wraps the same loader for the public project view. There is no DAU: the Play build ships without analytics because the app is declared child-directed.
+
 ### API Routes (`api/`)
 
 - `ga-traffic.ts` — Queries GA4 Data API. Accepts `?project=` to select the GA4 property. Property IDs are mapped from env vars in the `PROPERTIES` object. Returns engagement metrics (engagement rate, avg session duration, bounce rate, new vs returning users) alongside traffic.
@@ -45,6 +47,7 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 - `cloudflare-cdn.ts` — Queries Cloudflare GraphQL API for HTTP request stats (`httpRequests1dGroups`) and R2 storage (`r2StorageAdaptiveGroups`). Accepts `?project=` to select the zone. Zone IDs mapped from env vars. Only returns data for projects with Cloudflare zones configured.
 - `app-store.ts` — App Store stats (rating, version, reviews, daily downloads, daily active devices) for projects in its `APPS` map. Accepts `?project=`. See data source #5 for the env vars each capability needs.
 - `amazon-appstore.ts` — Amazon Appstore stats for projects in its `APPS` map. Accepts `?project=`. Returns `downloads` (Reporting API, live) and `stats` (installs + DAU/WAU/MAU from ingested CSVs); each half degrades independently with a `reason`. See data source #6.
+- `google-play.ts` — Google Play install stats for `STORE_APPS` entries with a `googlePrefix`. Accepts `?project=&range=` (1d/7d/30d/90d). Thin wrapper over `api/_shared/google-play.ts`; returns `installs` (daily user installs, device installs, latest active device installs) or `{ available: false, reason }`. See data source #7.
 
 ### Frontend
 
@@ -89,6 +92,7 @@ See `.env.example` for the full list. Key vars:
 - `GA4_PROPERTY_ID*` — One per monitored project
 - `ELEVENLABS_API_KEY` — For account-wide usage stats
 - `AMAZON_REPORTING_CLIENT_ID` / `AMAZON_REPORTING_CLIENT_SECRET` — LWA security profile attached to the Reporting API (Developer Console > My Settings > API Access)
+- `FABLE_PLAY_KEY_JSON` / `FABLE_PLAY_REPORT_BUCKET` — Play Console service-account key and `pubsite_prod_rev_…` bucket for the shared Fable Designer Play org account (Fable Reader and Space Race)
 - `DATABASE_URL` — Neon Postgres connection string
 - `CLOUDFLARE_API_TOKEN` — Cloudflare API token (Zone > Analytics > Read, Account > Workers R2 Storage > Read)
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID
