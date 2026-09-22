@@ -80,8 +80,18 @@ export async function loadGooglePlay(project: string, range: string) {
     if (credentials.type !== 'service_account' || !credentials.client_email || !credentials.private_key) return unavailable('The Google Play reporting credential needs checking.');
     const token = await new GoogleAuth({ credentials, scopes: [SCOPE] }).getAccessToken();
     if (!token) return unavailable('Google Play reporting could not sign in.');
+    // List before reading: without list access a missing object also answers 403, so "no reports yet" would read as "denied".
+    const prefix = `stats/installs/installs_${app.packageName}_`;
+    const listing = await fetch(`https://storage.googleapis.com/storage/v1/b/${bucket}/o?prefix=${encodeURIComponent(prefix)}&fields=items(name)`, {
+      headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(20000),
+    });
+    if (listing.status === 401 || listing.status === 403 || listing.status === 404) throw new Error('report_access');
+    if (!listing.ok) throw new Error('report_unavailable');
+    const exported = new Set(((await listing.json()).items ?? []).map((item: { name: string }) => item.name));
+    if (!exported.size) return unavailable('Google Play has not exported any install reports for this app yet. Play creates one after the first month with installs.');
     const reports = await mapBounded(months, async month => {
-      const object = `stats/installs/installs_${app.packageName}_${month}_country.csv`;
+      const object = `${prefix}${month}_country.csv`;
+      if (!exported.has(object)) return [];
       const response = await fetch(`https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(object)}?alt=media`, {
         headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(20000),
       });

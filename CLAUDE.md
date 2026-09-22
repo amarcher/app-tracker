@@ -139,3 +139,7 @@ CREATE TABLE amazon_appstore_stats (
 Created on demand by `scripts/ingest-amazon-reports.mjs`. Acquisition and engagement
 CSVs land on the same primary key and merge with `COALESCE`, so ingesting one does not
 blank the other's columns, and re-ingesting a month is idempotent.
+
+### All-time store installs
+
+`store_download_days` archives every store report day the `/api/business` sync sees (hourly 7d cron, plus a daily 90d cron that backfills and re-checks late Amazon month-end and Google exports). `store_history_coverage` records the earliest date a successful report window reached per store; the Businesses view's "All-time new installs" table only presents a total as all-time once that date is on or before the app's `historyFrom` in `api/_shared/store-apps.ts`, and marks partial totals with `*`.

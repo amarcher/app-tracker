@@ -24,6 +24,8 @@ export type BusinessStore = {
   reportingTimezone: string;
   recordedSince: string | null;
   recordedDownloads: number | null;
+  /** Recorded history reaches back before the app's first release, so recordedDownloads is an all-time total. */
+  recordedFromStart?: boolean;
 };
 export type BusinessSummary = {
   version: 1;
