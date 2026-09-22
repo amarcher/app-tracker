@@ -7,7 +7,7 @@ const MAX_REELS = 50;
  * pages_show_list, pages_read_engagement, read_insights, instagram_basic, instagram_manage_insights). */
 export const SOCIAL_ACCOUNTS: Record<string, { name: string; metaPrefix: string; pageId?: string }> = {
   'space-race': { name: 'Space Race', metaPrefix: 'SPACE_RACE_META', pageId: '1342569852267048' },
-  'fable-designer': { name: 'Fable Designer', metaPrefix: 'FABLE_META' },
+  'fable-designer': { name: 'Fable Designer', metaPrefix: 'FABLE_META', pageId: '1201088519765424' },
 };
 
 export function metaCredentials(project: string, env = process.env) {

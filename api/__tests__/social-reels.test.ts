@@ -9,7 +9,7 @@ it('keeps each brand on its own Meta token', () => {
   const env = { SPACE_RACE_META_TOKEN: 'space', FABLE_META_TOKEN: 'fable', FABLE_META_PAGE_ID: '42' };
   expect(metaCredentials('space-race', env)).toEqual({ token: 'space', pageId: '1342569852267048' });
   expect(metaCredentials('fable-designer', env)).toEqual({ token: 'fable', pageId: '42' });
-  expect(metaCredentials('fable-designer', {})).toEqual({ token: undefined, pageId: undefined });
+  expect(metaCredentials('fable-designer', {})).toEqual({ token: undefined, pageId: '1201088519765424' });
 });
 
 it('waits for a token without calling Meta', async () => {
