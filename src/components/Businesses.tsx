@@ -29,6 +29,38 @@ function AllTimeInstalls({ apps }: { apps: BusinessSummary['apps'] }) {
   </section>;
 }
 
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook' } as const;
+const count = (value: number | null) => value === null ? '—' : value.toLocaleString();
+
+function SocialReels({ social, range }: { social: NonNullable<BusinessSummary['social']>; range: DateRange }) {
+  return <section className="section">
+    <h2>Reels</h2>
+    <p className="business-freshness">Lifetime views of each account’s most recent 50 posts, as Meta reports them. Views count every play; reach counts unique accounts.</p>
+    {social.map(brand => {
+      const top = brand.platforms.flatMap(platform => platform.reels).filter(reel => reel.views !== null)
+        .sort((a, b) => b.views! - a.views!).slice(0, 5);
+      return <div key={brand.project} className="business-social-brand">
+        <h3>{brand.name}</h3>
+        <div className="business-stores">{brand.platforms.map(platform => <div className="business-store" key={platform.platform}>
+          <h4>{PLATFORM_LABELS[platform.platform]}{platform.account ? <span> · {platform.account}</span> : null}</h4>
+          {platform.available ? <>
+            <div className="business-downloads">{count(platform.views)}<span>reel views</span></div>
+            <p>{platform.viewsInRange === null ? `Views gained in the last ${range} appear once daily readings reach back that far.` : `+${platform.viewsInRange.toLocaleString()} in the last ${range}`}</p>
+            <p>{count(platform.reach)} reached · {count(platform.interactions)} interactions · {platform.reels.length} {platform.reels.length === 1 ? 'reel' : 'reels'}</p>
+          </> : <p>{platform.reason}</p>}
+        </div>)}</div>
+        {top.length ? <div className="business-table-scroll"><table className="business-reels">
+          <thead><tr><th scope="col">Top reels</th><th scope="col">Posted</th><th scope="col">Views</th><th scope="col">Reach</th></tr></thead>
+          <tbody>{top.map(reel => <tr key={`${reel.platform}:${reel.id}`}>
+            <th scope="row">{reel.url ? <a href={reel.url} target="_blank" rel="noreferrer">{reel.title}</a> : reel.title}<span> {PLATFORM_LABELS[reel.platform]}</span></th>
+            <td>{reel.publishedAt.slice(0, 10)}</td><td>{count(reel.views)}</td><td>{count(reel.reach)}</td>
+          </tr>)}</tbody>
+        </table></div> : null}
+      </div>;
+    })}
+  </section>;
+}
+
 const cash = (value: number | null) => value === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100);
 export function Businesses({ range, refresh }: { range: DateRange; refresh: number }) {
   const [data, setData] = useState<BusinessSummary | null>(null);
@@ -57,6 +89,7 @@ export function Businesses({ range, refresh }: { range: DateRange; refresh: numb
   return <div className="businesses">
     <div className="business-intro"><h1>Our businesses</h1><p>{data.range.from} through {data.range.through} (UTC)</p><p className="business-freshness">{data.stale ? 'Showing the last saved report' : 'Updated'} {new Date(data.generatedAt).toLocaleString()}</p></div>
     <AllTimeInstalls apps={data.apps} />
+    {data.social?.length ? <SocialReels social={data.social} range={range} /> : null}
     <section className="section">
       <div className="business-heading"><h2>Fable Designer</h2><a href="https://fabledesigner.com/admin/business">Open admin</a></div>
       {fable ? <>

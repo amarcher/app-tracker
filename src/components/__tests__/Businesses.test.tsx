@@ -28,3 +28,19 @@ describe('Businesses all-time installs', () => {
     expect(within(fable).getAllByRole('cell').map(cell => cell.textContent)).toEqual(['12', '4*', '—', '—']);
   });
 });
+
+describe('Businesses reels', () => {
+  it('shows each brand’s Meta reels and why a platform is missing', async () => {
+    const reel = { id: 'm1', platform: 'instagram' as const, title: 'Earth–Moon tides', url: 'https://instagram.com/reel/a', publishedAt: '2026-09-21T22:27:00Z', views: 1200, reach: 900, interactions: 40 };
+    const social: BusinessSummary['social'] = [{ project: 'space-race', name: 'Space Race', platforms: [
+      { platform: 'instagram', available: true, account: '@spacerace1000ly', reels: [reel], views: 1200, reach: 900, interactions: 40, viewsInRange: 300 },
+      { platform: 'facebook', available: false, reason: 'Instagram and Facebook insights are awaiting connection.', reels: [], views: null, reach: null, interactions: null, viewsInRange: null },
+    ] }];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ...summary, social }) }));
+    render(<Businesses range="7d" refresh={0} />);
+    expect(await screen.findByText('@spacerace1000ly', { exact: false })).toBeDefined();
+    expect(screen.getByText('+300 in the last 7d')).toBeDefined();
+    expect(screen.getByText('Instagram and Facebook insights are awaiting connection.')).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Earth–Moon tides' }).getAttribute('href')).toBe('https://instagram.com/reel/a');
+  });
+});

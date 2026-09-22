@@ -3,7 +3,8 @@ import { loadAppStore } from '../app-store.js';
 import { loadAmazonAppstore } from '../amazon-appstore.js';
 import { loadGooglePlay } from './google-play.js';
 import { STORE_APPS, storeSource, trustedLegacyStore } from './store-apps.js';
-import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, StoreDay, StoreName } from '../../src/types/business.js';
+import { loadSocialReels, SOCIAL_ACCOUNTS } from './social-reels.js';
+import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, SocialPlatformSummary, StoreDay, StoreName } from '../../src/types/business.js';
 
 const DAY = 86400_000;
 export const dayAt = (delta: number, now = Date.now()) => new Date(now + delta * DAY).toISOString().slice(0, 10);
@@ -45,6 +46,40 @@ export async function ensureBusinessStorage() {
     project TEXT NOT NULL, store TEXT NOT NULL, source TEXT NOT NULL, covered_from DATE NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY(project, store, source)
   )`;
+  // Meta reports only lifetime reel counters; a daily reading per reel turns them into views gained over a range.
+  await db`CREATE TABLE IF NOT EXISTS social_reel_snapshots (
+    project TEXT NOT NULL, platform TEXT NOT NULL, reel_id TEXT NOT NULL, date DATE NOT NULL,
+    views INTEGER, reach INTEGER, interactions INTEGER, updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY(project, platform, reel_id, date)
+  )`;
+}
+
+/** Growth since the range began: reels published inside the range count in full, older ones against their reading
+ * on or before the start. Null until snapshots reach back that far. */
+export function viewsGained(summary: SocialPlatformSummary, baselines: Map<string, number | null>, from: string): number | null {
+  let gained = 0;
+  for (const reel of summary.reels) {
+    if (reel.views === null) continue;
+    if (reel.publishedAt.slice(0, 10) >= from) { gained += reel.views; continue; }
+    const before = baselines.get(reel.id);
+    if (before === undefined || before === null) return null;
+    gained += Math.max(0, reel.views - before);
+  }
+  return gained;
+}
+
+async function archiveSocial(project: string, summary: SocialPlatformSummary, today: string, from: string) {
+  if (!process.env.DATABASE_URL || !summary.available) return;
+  const db = neon(process.env.DATABASE_URL);
+  const rows = summary.reels.map(reel => ({ id: reel.id, views: reel.views, reach: reel.reach, interactions: reel.interactions }));
+  if (rows.length) await db`INSERT INTO social_reel_snapshots (project, platform, reel_id, date, views, reach, interactions)
+    SELECT ${project}, ${summary.platform}, r->>'id', ${today}::date, (r->>'views')::integer, (r->>'reach')::integer, (r->>'interactions')::integer
+    FROM jsonb_array_elements(${JSON.stringify(rows)}::jsonb) r
+    ON CONFLICT (project, platform, reel_id, date) DO UPDATE SET views=EXCLUDED.views, reach=EXCLUDED.reach,
+      interactions=EXCLUDED.interactions, updated_at=now()`;
+  const baselines = await db`SELECT DISTINCT ON (reel_id) reel_id, views FROM social_reel_snapshots
+    WHERE project=${project} AND platform=${summary.platform} AND date <= ${from}::date ORDER BY reel_id, date DESC`;
+  summary.viewsInRange = viewsGained(summary, new Map(baselines.map(row => [row.reel_id as string, row.views as number | null])), from);
 }
 
 async function archiveStore(project: string, store: BusinessStore, windowStart: string) {
@@ -146,6 +181,11 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
       return summary;
     }));
     return { project, name: app.name, stores };
+  }));
+  result.social = await Promise.all(Object.entries(SOCIAL_ACCOUNTS).map(async ([project, account]) => {
+    const platforms = await loadSocialReels(project);
+    if (archive) await Promise.all(platforms.map(platform => archiveSocial(project, platform, through, from).catch(() => undefined)));
+    return { project, name: account.name, platforms };
   }));
   await fableRequest;
   if (archive && process.env.DATABASE_URL) {
