@@ -39,6 +39,22 @@ async function lifetimeMetrics(path: string, token: string, metrics: string[]): 
   return Object.fromEntries(entries);
 }
 
+/** Facebook reels reject per-metric lifetime requests; asking for everything returns each metric's lifetime value.
+ * Breakdown metrics (reactions by type, comments/shares) arrive as objects and are summed. */
+async function allReelMetrics(id: string, token: string): Promise<Record<string, number>> {
+  try {
+    const rows: { name: string; values?: { value: unknown }[] }[] = (await graph(`${id}/video_insights`, token)).data ?? [];
+    const metrics: Record<string, number> = {};
+    for (const row of rows) {
+      const value = row.values?.[0]?.value;
+      const total = typeof value === 'number' ? value : value && typeof value === 'object'
+        ? Object.values(value).reduce<number>((sum, part) => sum + (typeof part === 'number' ? part : 0), 0) : NaN;
+      if (Number.isSafeInteger(total)) metrics[row.name] = total;
+    }
+    return metrics;
+  } catch { return {}; }
+}
+
 const sum = (reels: ReelStat[], key: 'views' | 'reach' | 'interactions') =>
   reels.some(reel => reel[key] !== null) ? reels.reduce((total, reel) => total + (reel[key] ?? 0), 0) : null;
 
@@ -64,11 +80,13 @@ async function instagramReels(igId: string, username: string | undefined, token:
 async function facebookReels(pageId: string, pageName: string | undefined, token: string) {
   const list = await graph(`${pageId}/video_reels`, token, { fields: 'id,description,permalink_url,created_time', limit: String(MAX_REELS) });
   const reels: ReelStat[] = await Promise.all((list.data ?? []).map(async (item: { id: string; description?: string; permalink_url?: string; created_time: string }) => {
-    // Facebook's reel "plays" is the figure Meta labels Views in Page insights; reach is unique accounts.
-    const m = await lifetimeMetrics(`${item.id}/video_insights`, token, ['blue_reels_play_count', 'post_impressions_unique', 'post_video_social_actions']);
+    const m = await allReelMetrics(item.id, token);
     return { id: item.id, platform: 'facebook' as const, title: title(item.description),
       url: item.permalink_url ? new URL(item.permalink_url, 'https://www.facebook.com').href : null,
-      publishedAt: item.created_time, views: m.blue_reels_play_count, reach: m.post_impressions_unique, interactions: m.post_video_social_actions };
+      // Total plays include replays, matching how Instagram counts views; first plays are the fallback.
+      publishedAt: item.created_time, views: m.fb_reels_total_plays ?? m.blue_reels_play_count ?? null, reach: m.post_impressions_unique ?? null,
+      interactions: m.post_video_likes_by_reaction_type === undefined && m.post_video_social_actions === undefined ? null
+        : (m.post_video_likes_by_reaction_type ?? 0) + (m.post_video_social_actions ?? 0) };
   }));
   return summary('facebook', pageName, reels);
 }

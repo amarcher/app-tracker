@@ -34,13 +34,17 @@ it('reads reels with the Page token, tolerating a metric Meta does not report', 
     if (path === 'm1/insights') return metric === 'views' ? Response.json({ data: [{ values: [{ value: 1200 }] }] })
       : metric === 'reach' ? Response.json({ data: [{ total_value: { value: 900 } }] }) : new Response('{"error":"bad metric"}', { status: 400 });
     if (path === '1342569852267048/video_reels') return Response.json({ data: [{ id: 'f1', description: 'Tides', permalink_url: '/reel/1566663324662186/', created_time: '2026-09-21T22:26:00+0000' }] });
-    if (path === 'f1/video_insights') return Response.json({ data: [{ values: [{ value: metric === 'blue_reels_play_count' ? 300 : 250 }] }] });
+    if (path === 'f1/video_insights') return Response.json({ data: [
+      { name: 'blue_reels_play_count', values: [{ value: 280 }] }, { name: 'fb_reels_total_plays', values: [{ value: 300 }] },
+      { name: 'post_impressions_unique', values: [{ value: 250 }] }, { name: 'post_video_likes_by_reaction_type', values: [{ value: { LIKE: 4, LOVE: 1 } }] },
+      { name: 'post_video_social_actions', values: [{ value: { COMMENT: 2, SHARE: 1 } }] },
+      { name: 'post_video_retention_graph', values: [{ value: { 0: 1, 1: 0.8 } }] }] });
     throw new Error(`unexpected ${path}`);
   }));
   const [instagram, facebook] = await loadSocialReels('space-race');
   expect(instagram).toMatchObject({ available: true, account: '@spacerace1000ly', views: 1200, reach: 900, interactions: null });
   expect(instagram.reels).toEqual([expect.objectContaining({ id: 'm1', title: 'Tides', url: 'https://instagram.com/reel/a' })]);
-  expect(facebook).toMatchObject({ available: true, account: 'Space Race', views: 300, reach: 250 });
+  expect(facebook).toMatchObject({ available: true, account: 'Space Race', views: 300, reach: 250, interactions: 8 });
   expect(facebook.reels[0].url).toBe('https://www.facebook.com/reel/1566663324662186/');
   expect(seen.slice(1).every(url => url.searchParams.get('access_token') === 'page-token')).toBe(true);
 });

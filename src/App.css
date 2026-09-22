@@ -724,6 +724,7 @@ tr:hover td {
 .business-reels th, .business-reels td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
 .business-reels th[scope="row"], .business-reels thead th:first-child { text-align: left; white-space: normal; min-width: 12em; }
 .business-reels thead th { color: var(--text-secondary); font-weight: 500; font-size: 13px; }
+.business-alltime th[scope="row"], .business-reels th[scope="row"] { text-transform: none; letter-spacing: normal; font-size: 14px; font-weight: 500; color: var(--text-primary); background: none; }
 .business-reels th[scope="row"] a { color: var(--text-primary); }
 .business-reels th[scope="row"] span { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
 .business-definitions { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px; color: var(--text-secondary); font-size: 13px; }
