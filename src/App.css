@@ -716,6 +716,17 @@ tr:hover td {
 .business-alltime td { font-size: 20px; font-weight: 600; }
 .business-alltime td:last-child { color: var(--accent-green); }
 .business-alltime td span { font-size: 13px; color: var(--text-secondary); margin-left: 2px; }
+.business-social-brand + .business-social-brand { margin-top: 32px; }
+.business-social-brand > h3 { margin: 20px 0 8px; }
+.business-store h4 { color: var(--text-primary); font-size: 15px; }
+.business-store h4 span { color: var(--text-secondary); font-weight: 400; }
+.business-reels { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
+.business-reels th, .business-reels td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.business-reels th[scope="row"], .business-reels thead th:first-child { text-align: left; white-space: normal; min-width: 12em; }
+.business-reels thead th { color: var(--text-secondary); font-weight: 500; font-size: 13px; }
+.business-alltime th[scope="row"], .business-reels th[scope="row"] { text-transform: none; letter-spacing: normal; font-size: 14px; font-weight: 500; color: var(--text-primary); background: none; }
+.business-reels th[scope="row"] a { color: var(--text-primary); }
+.business-reels th[scope="row"] span { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
 .business-definitions { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px; color: var(--text-secondary); font-size: 13px; }
 .business-definitions summary { cursor: pointer; color: var(--text-primary); }
 .business-definitions p { margin-top: 10px; max-width: 76ch; }
