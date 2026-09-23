@@ -1,4 +1,7 @@
 {
   "framework": "vite",
-  "crons": [{ "path": "/api/business?action=sync&range=7d", "schedule": "15 * * * *" }]
+  "crons": [
+    { "path": "/api/business?action=sync&range=7d", "schedule": "15 * * * *" },
+    { "path": "/api/business?action=sync&range=90d", "schedule": "40 9 * * *" }
+  ]
 }

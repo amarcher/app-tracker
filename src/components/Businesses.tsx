@@ -4,6 +4,31 @@ import type { BusinessSummary, BusinessTotals } from '../types/business';
 import type { DateRange } from '../types';
 import { MetricCard } from './MetricCard';
 
+const STORE_LABELS = { apple: 'Apple App Store', amazon: 'Amazon Appstore', google: 'Google Play' } as const;
+const STORE_ORDER = ['apple', 'amazon', 'google'] as const;
+
+/** Range-independent: sums every archived report day, so it only reads "all time" once history reaches the first release. */
+function AllTimeInstalls({ apps }: { apps: BusinessSummary['apps'] }) {
+  const partial = apps.some(app => app.stores.some(store => !store.recordedFromStart));
+  return <section className="section">
+    <h2>All-time new installs</h2>
+    <p className="business-freshness">First-time installs on each store since release. Redownloads and updates are not counted.</p>
+    <div className="business-table-scroll"><table className="business-alltime">
+      <thead><tr><th scope="col">App</th>{STORE_ORDER.map(store => <th scope="col" key={store}>{STORE_LABELS[store]}</th>)}<th scope="col">All stores</th></tr></thead>
+      <tbody>{apps.map(app => {
+        const cells = STORE_ORDER.map(name => app.stores.find(store => store.store === name));
+        const total = cells.every(store => store?.recordedDownloads != null && store.recordedFromStart)
+          ? cells.reduce((sum, store) => sum + store!.recordedDownloads!, 0) : null;
+        return <tr key={app.project}><th scope="row">{app.name}</th>
+          {cells.map((store, index) => <td key={STORE_ORDER[index]}>{store?.recordedDownloads == null ? '—'
+            : <>{store.recordedDownloads.toLocaleString()}{store.recordedFromStart ? null : <span title={`Recorded since ${store.recordedSince}`}>*</span>}</>}</td>)}
+          <td>{total === null ? '—' : total.toLocaleString()}</td></tr>;
+      })}</tbody>
+    </table></div>
+    {partial ? <p className="business-freshness">* Recorded since the date shown on hover. The history does not reach the app’s release yet. — means the store has not provided a report.</p> : null}
+  </section>;
+}
+
 const cash = (value: number | null) => value === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100);
 export function Businesses({ range, refresh }: { range: DateRange; refresh: number }) {
   const [data, setData] = useState<BusinessSummary | null>(null);
@@ -31,6 +56,7 @@ export function Businesses({ range, refresh }: { range: DateRange; refresh: numb
   };
   return <div className="businesses">
     <div className="business-intro"><h1>Our businesses</h1><p>{data.range.from} through {data.range.through} (UTC)</p><p className="business-freshness">{data.stale ? 'Showing the last saved report' : 'Updated'} {new Date(data.generatedAt).toLocaleString()}</p></div>
+    <AllTimeInstalls apps={data.apps} />
     <section className="section">
       <div className="business-heading"><h2>Fable Designer</h2><a href="https://fabledesigner.com/admin/business">Open admin</a></div>
       {fable ? <>
@@ -46,7 +72,7 @@ export function Businesses({ range, refresh }: { range: DateRange; refresh: numb
       </> : <p>{data.fableReason}</p>}
     </section>
     {data.apps.map(app => <section className="section" key={app.project}><h2>{app.name}</h2><div className="business-stores">{app.stores.map(store => <div className="business-store" key={store.store}>
-      <h3>{{ apple: 'Apple App Store', amazon: 'Amazon Appstore', google: 'Google Play' }[store.store]}</h3>
+      <h3>{STORE_LABELS[store.store]}</h3>
       <div className="business-downloads">{store.downloads === null ? '—' : store.downloads.toLocaleString()}<span>{store.store === 'google' ? 'user installs' : 'new downloads'}</span></div>
       <p>{store.latest ? `${store.timeseries[0].date}–${store.latest.date} · ${store.reportingTimezone}` : 'Awaiting a store report'}</p>
       {!store.complete ? <p className="business-freshness">Some reporting dates are not available yet.</p> : null}

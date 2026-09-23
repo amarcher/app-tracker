@@ -1,8 +1,10 @@
-/** Public store identities; credentials remain in server environment variables. */
-export const STORE_APPS: Record<string, { name: string; appleId: string; asin: string; packageName: string; ascPrefix: string; amazonPrefix: string; googlePrefix?: string }> = {
+/** Public store identities; credentials remain in server environment variables.
+ * `historyFrom` precedes each app's first release on any store (Space Race: App Store 2026-07-13;
+ * Fable Reader: Amazon before its 2026-09-11 App Store release), so all-time totals start there. */
+export const STORE_APPS: Record<string, { name: string; appleId: string; asin: string; packageName: string; ascPrefix: string; amazonPrefix: string; googlePrefix?: string; historyFrom: string }> = {
   // Both apps publish from the same Fable Designer Play org account, so they share its report bucket and reporting service account.
-  'space-race': { name: 'Space Race: 1000 Light-Years', appleId: '6788064058', asin: 'B0GXHBHD78', packageName: 'tech.spaceexplorer.spacerace', ascPrefix: 'ASC', amazonPrefix: 'AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY' },
-  'fable-designer': { name: 'Fable Reader by Fable Designer', appleId: '6807123917', asin: 'B0HGTXJ7QQ', packageName: 'com.fabledesigner.reader', ascPrefix: 'FABLE_ASC', amazonPrefix: 'FABLE_AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY' },
+  'space-race': { name: 'Space Race: 1000 Light-Years', appleId: '6788064058', asin: 'B0GXHBHD78', packageName: 'tech.spaceexplorer.spacerace', ascPrefix: 'ASC', amazonPrefix: 'AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY', historyFrom: '2026-07-01' },
+  'fable-designer': { name: 'Fable Reader by Fable Designer', appleId: '6807123917', asin: 'B0HGTXJ7QQ', packageName: 'com.fabledesigner.reader', ascPrefix: 'FABLE_ASC', amazonPrefix: 'FABLE_AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY', historyFrom: '2026-07-01' },
 };
 
 export async function mapBounded<T, R>(items: T[], worker: (item: T) => Promise<R>, concurrency = 3): Promise<R[]> {

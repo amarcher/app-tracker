@@ -22,7 +22,7 @@ export function storeSummary(store: StoreName, rows: StoreDay[], expectedDates: 
     downloads: timeseries.length ? timeseries.reduce((sum, row) => sum + row.downloads, 0) : null,
     latest: timeseries.at(-1) ?? null, complete,
     reportingTimezone: store === 'amazon' ? 'UTC' : 'America/Los_Angeles',
-    recordedSince: null, recordedDownloads: null };
+    recordedSince: null, recordedDownloads: null, recordedFromStart: false };
 }
 
 /** Additive tables, only initialized by authenticated collection.
@@ -40,9 +40,14 @@ export async function ensureBusinessStorage() {
   )`;
   // Add provenance without deleting the earlier, misattributed Fable/Amazon observations.
   await db`ALTER TABLE store_download_days ADD COLUMN IF NOT EXISTS source TEXT`;
+  // Earliest date a successful report window has reached, so an all-time total is only claimed once it reaches the app's first release.
+  await db`CREATE TABLE IF NOT EXISTS store_history_coverage (
+    project TEXT NOT NULL, store TEXT NOT NULL, source TEXT NOT NULL, covered_from DATE NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY(project, store, source)
+  )`;
 }
 
-async function archiveStore(project: string, store: BusinessStore) {
+async function archiveStore(project: string, store: BusinessStore, windowStart: string) {
   if (!process.env.DATABASE_URL) return;
   const db = neon(process.env.DATABASE_URL);
   const source = storeSource(project, store.store);
@@ -54,11 +59,16 @@ async function archiveStore(project: string, store: BusinessStore) {
     FROM jsonb_array_elements(${JSON.stringify(store.timeseries)}::jsonb) r
     ON CONFLICT (project, store, date) DO UPDATE SET downloads=EXCLUDED.downloads,
       updates=EXCLUDED.updates, redownloads=EXCLUDED.redownloads, source=EXCLUDED.source, updated_at=now()`;
-  const [history] = await db`SELECT min(date)::text AS since, sum(downloads)::integer AS downloads
+  if (store.available) await db`INSERT INTO store_history_coverage (project, store, source, covered_from)
+    VALUES (${project}, ${store.store}, ${source}, ${windowStart}::date)
+    ON CONFLICT (project, store, source) DO UPDATE SET covered_from=LEAST(store_history_coverage.covered_from, EXCLUDED.covered_from), updated_at=now()`;
+  const [history] = await db`SELECT min(date)::text AS since, sum(downloads)::integer AS downloads,
+      (SELECT covered_from::text FROM store_history_coverage c WHERE c.project=${project} AND c.store=${store.store} AND c.source=${source}) AS covered_from
     FROM store_download_days WHERE project=${project} AND store=${store.store}
       AND (source=${source} OR (source IS NULL AND ${trustedLegacyStore(project, store.store)}))`;
   store.recordedSince = history?.since ?? null;
   store.recordedDownloads = history?.downloads ?? null;
+  store.recordedFromStart = !!history?.covered_from && history.covered_from <= STORE_APPS[project].historyFrom;
 }
 
 /** Old cached snapshots must not bypass corrected account attribution. */
@@ -66,7 +76,7 @@ export function validateCachedStoreSources(report: BusinessSummary): BusinessSum
   return { ...report, apps: report.apps.map(app => ({ ...app, stores: app.stores.map(store => {
     if (store.source === storeSource(app.project, store.store) || (!store.source && trustedLegacyStore(app.project, store.store))) return store;
     return { ...store, available: false, timeseries: [], downloads: null, latest: null, complete: false,
-      recordedSince: null, recordedDownloads: null,
+      recordedSince: null, recordedDownloads: null, recordedFromStart: false,
       reason: 'The earlier report used a different developer account. A report from this app’s account is required.' };
   }) })) };
 }
@@ -132,7 +142,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
       summary.source = storeSource(project, store);
       if (!summary.available) summary.reason = report.status === 'fulfilled' && 'connectionReason' in report.value && report.value.connectionReason
         ? report.value.connectionReason : 'No store report is available for this period.';
-      if (archive) { try { await archiveStore(project, summary); } catch { summary.reason = summary.available ? 'Live report received; history could not be saved.' : 'No current store report is available; history could not be loaded.'; } }
+      if (archive) { try { await archiveStore(project, summary, dates[0]); } catch { summary.reason = summary.available ? 'Live report received; history could not be saved.' : 'No current store report is available; history could not be loaded.'; } }
       return summary;
     }));
     return { project, name: app.name, stores };

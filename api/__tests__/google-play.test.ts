@@ -53,19 +53,24 @@ function configure() {
 
 it('reads only the selected package and country report through the read-only Storage API', async () => {
   configure();
-  const fetcher = vi.fn().mockResolvedValue(new Response(Buffer.from('\uFEFF' + csv, 'utf16le')));
+  const fetcher = vi.fn()
+    .mockResolvedValueOnce(Response.json({ items: [{ name: `stats/installs/installs_${pkg}_202609_country.csv` }, { name: `stats/installs/installs_${pkg}_202608_country.csv` }] }))
+    .mockResolvedValue(new Response(Buffer.from('\uFEFF' + csv, 'utf16le')));
   vi.stubGlobal('fetch', fetcher);
   const report = await loadGooglePlay('fable-designer', '7d');
   expect(report.downloads.available).toBe(true);
-  expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(fetcher.mock.calls[0][0]).toContain(`installs_${pkg}_202609_country.csv?alt=media`);
-  expect(fetcher.mock.calls[0][1]).toMatchObject({ redirect: 'error', headers: { Authorization: 'Bearer fixture-token' } });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher.mock.calls[0][0]).toContain(`/o?prefix=${encodeURIComponent(`stats/installs/installs_${pkg}_`)}`);
+  expect(fetcher.mock.calls[1][0]).toContain(`installs_${pkg}_202609_country.csv?alt=media`);
+  expect(fetcher.mock.calls[1][1]).toMatchObject({ redirect: 'error', headers: { Authorization: 'Bearer fixture-token' } });
 });
 
 it('distinguishes delayed exports from denied access and never returns provider secrets', async () => {
   configure();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })));
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(Response.json({ items: [{ name: `stats/installs/installs_${pkg}_202607_country.csv` }] })));
   expect((await loadGooglePlay('fable-designer', '7d')).connectionReason).toContain('not provided install reports');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(Response.json({})));
+  expect((await loadGooglePlay('fable-designer', '7d')).connectionReason).toContain('not exported any install reports');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('secret provider body', { status: 403 })));
   const report = await loadGooglePlay('fable-designer', '7d');
   expect(report.connectionReason).toContain('denied access');

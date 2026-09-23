@@ -17,7 +17,7 @@ it('retains recorded download totals when the selected period has no store repor
   query.mockImplementation(async (parts: TemplateStringsArray, ...values: unknown[]) => {
     if (parts.join('').includes('SELECT min(date)')) {
       expect(parts.join('')).toContain('source IS NULL');
-      const [project, store, source, acceptLegacy] = values;
+      const [project, store, source, acceptLegacy] = values.slice(3);
       expect(source).toBe(storeSource(String(project), store as 'apple' | 'amazon'));
       if (store === 'google' || project === 'fable-designer' && store === 'amazon') {
         expect(acceptLegacy).toBe(false);
@@ -37,7 +37,30 @@ it('retains recorded download totals when the selected period has no store repor
     const misattributed = store.store === 'google' || app.project === 'fable-designer' && store.store === 'amazon';
     expect(store.recordedSince).toBe(misattributed ? null : '2026-08-01');
     expect(store.recordedDownloads).toBe(misattributed ? null : 12);
+    expect(store.recordedFromStart).toBe(false);
   }
+});
+
+it('claims an all-time total only once a successful report window reaches the first release', async () => {
+  vi.stubEnv('DATABASE_URL', 'postgresql://fixture:fixture@localhost/fixture');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+  const coverage: unknown[][] = [];
+  query.mockImplementation(async (parts: TemplateStringsArray, ...values: unknown[]) => {
+    const sql = parts.join('');
+    if (sql.includes('INSERT INTO store_history_coverage')) { coverage.push(values); return []; }
+    if (sql.includes('SELECT min(date)')) return [{ since: '2026-07-13', downloads: 40, covered_from: values[0] === 'space-race' ? '2026-06-24' : '2026-09-01' }];
+    return [];
+  });
+  const appStore = await import('../app-store.js');
+  vi.spyOn(appStore, 'loadAppStore').mockResolvedValue({ downloads: { available: true, timeseries: [{ date: '2026-09-20', downloads: 3, reportAvailable: true }] } } as never);
+
+  const report = await collectBusiness(90, true);
+  const apple = (project: string) => report.apps.find(app => app.project === project)!.stores.find(store => store.store === 'apple')!;
+  expect(apple('space-race')).toMatchObject({ recordedDownloads: 40, recordedFromStart: true });
+  expect(apple('fable-designer').recordedFromStart).toBe(false);
+  // Only stores that returned a report extend coverage, from the start of the requested window.
+  expect(coverage.map(([project, store]) => `${project}:${store}`)).toEqual(['space-race:apple', 'fable-designer:apple']);
+  expect(coverage.every(values => values[3] === coverage[0][3])).toBe(true);
 });
 
 it('quarantines misattributed Fable/Amazon snapshots without losing verified history', () => {
