@@ -10,7 +10,7 @@ import type { StoreDay } from '../src/types/business.js';
 const RANGES = ['1d', '7d', '30d', '90d'];
 
 export function summarizeInstalls(timeseries: StoreDay[]) {
-  const latest = timeseries.at(-1);
+  const latest = timeseries[timeseries.length - 1] as (typeof timeseries)[number] | undefined;
   if (!latest) return null;
   const deviceInstalls = timeseries.reduce<number | null>(
     (sum, day) => sum === null || day.deviceInstalls == null ? null : sum + day.deviceInstalls, 0);

@@ -54,6 +54,22 @@ async function listConversations(
   return all;
 }
 
+const RECENT_LIMIT = 20;
+
+/** Non-empty user turns in one conversation; null if the transcript can't be read. */
+async function countUserTurns(conversationId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`, {
+      headers: { 'xi-api-key': API_KEY! },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { transcript?: { role: string; message: string | null }[] };
+    return (body.transcript ?? []).filter((t) => t.role === 'user' && t.message?.trim()).length;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (!API_KEY) {
@@ -88,16 +104,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const successful = conversations.filter((c) => c.call_successful === 'success').length;
     const failed = conversations.filter((c) => c.call_successful === 'failure').length;
     const evaluated = successful + failed; // exclude 'unknown' from the denominator
-    // message_count includes the agent's greeting: <=1 means the visitor never
-    // said anything (often mic/audio trouble); >=4 is a real back-and-forth.
-    const noReply = conversations.filter((c) => c.message_count <= 1).length;
-    const engaged = conversations.filter((c) => c.message_count >= 4).length;
 
     // Sort recent (most recent first) and take up to 20.
-    const recentConversations = [...conversations]
+    const recent = [...conversations]
       .sort((a, b) => b.start_time_unix_secs - a.start_time_unix_secs)
-      .slice(0, 20)
-      .map((c) => ({
+      .slice(0, RECENT_LIMIT);
+    // message_count also counts the app's contextual updates, so it can't tell
+    // whether the visitor spoke. Count real user turns from the transcripts.
+    const userTurns = await Promise.all(recent.map((c) => countUserTurns(c.conversation_id)));
+    const counted = userTurns.filter((n): n is number => n !== null);
+    const noReply = counted.filter((n) => n === 0).length;
+    const engaged = counted.filter((n) => n >= 2).length;
+
+    const recentConversations = recent
+      .map((c, i) => ({
+        userTurns: userTurns[i],
         conversationId: c.conversation_id,
         agentName: c.agent_name,
         startTimeUnix: c.start_time_unix_secs,
@@ -120,6 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         failed,
         noReply,
         engaged,
+        turnsSampled: counted.length,
       },
       recentConversations,
     });

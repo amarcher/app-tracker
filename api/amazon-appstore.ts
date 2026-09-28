@@ -232,7 +232,7 @@ export function summarizeIngestedStats(rows: Record<string, unknown>[]) {
     return { date, installs: metric('daily_installs_unique'), installEvents: metric('daily_install_events'),
       currentInstalls: metric('current_user_installs'), dau: metric('dau'), wau: metric('wau'), mau: metric('mau') };
   });
-  const latest = timeseries.at(-1)!;
+  const latest = timeseries[timeseries.length - 1];
   const active = timeseries.flatMap(row => row.dau === null ? [] : [row.dau]);
   return { available: true as const, timeseries,
     note: 'Unique metrics require an All devices / All marketplaces report row. Segmented or suppressed totals remain unavailable.',

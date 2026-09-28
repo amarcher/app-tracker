@@ -156,6 +156,8 @@ export interface AgentStatsConversation {
   startTimeUnix: number;
   durationSecs: number;
   messageCount: number;
+  /** Non-empty visitor turns; null when the transcript couldn't be read. */
+  userTurns?: number | null;
   callSuccessful: string;
   summaryTitle: string | null;
 }
@@ -170,10 +172,12 @@ export interface AgentStatsResponse {
     successRate: number;
     successful?: number;
     failed?: number;
-    /** Sessions where the visitor never spoke (agent greeting only). */
+    /** Of the recent sessions sampled, how many the visitor never spoke in. */
     noReply?: number;
-    /** Sessions with a real back-and-forth (4+ messages). */
+    /** Of the recent sessions sampled, how many had 2+ visitor turns. */
     engaged?: number;
+    /** How many recent sessions had readable transcripts. */
+    turnsSampled?: number;
   };
   recentConversations: AgentStatsConversation[];
 }
