@@ -6,6 +6,8 @@ const POSTHOG_HOST = 'https://us.posthog.com';
 const POSTHOG_PROJECT_ID = 367489;
 
 interface ProjectConfig {
+  /** Value of the `app` super property: several apps share this PostHog project. */
+  app?: string;
   events: Record<string, string>;
   breakdownEvent?: string;
   breakdownProperty?: string;
@@ -14,11 +16,15 @@ interface ProjectConfig {
 
 const PROJECT_CONFIGS: Record<string, ProjectConfig> = {
   'space-explorer': {
+    app: 'space-explorer',
     events: {
       planet_viewed: 'Planets Viewed',
       moon_viewed: 'Moons Viewed',
       sun_viewed: 'Sun Viewed',
-      voice_agent_activated: 'Voice Agent',
+      voice_agent_activated: 'Stella Button Taps',
+      voice_session_connected: 'Stella Connected',
+      voice_agent_failed: 'Stella Failures',
+      rubin_find_viewed: 'Rubin Finds Viewed',
       exploration_milestone: 'Milestones',
     },
     breakdownEvent: 'planet_viewed',
@@ -26,6 +32,7 @@ const PROJECT_CONFIGS: Record<string, ProjectConfig> = {
     breakdownLabel: 'topItems',
   },
   'animal-penpals': {
+    app: 'animal-penpals',
     events: {
       animal_selected: 'Animals Selected',
       letter_sent: 'Letters Sent',
@@ -40,6 +47,7 @@ const PROJECT_CONFIGS: Record<string, ProjectConfig> = {
     breakdownLabel: 'topItems',
   },
   'periodic-table': {
+    app: 'periodic-table',
     events: {
       element_opened: 'Elements Opened',
       element_closed: 'Elements Closed',
@@ -92,6 +100,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ totals: [], timeseries: [], topItems: [] });
     }
 
+    // Events sent before the app tag existed (2026-09-28) have no `app`; the
+    // keys were broken before then, so there is effectively nothing to lose.
+    const appFilter = config.app
+      ? { properties: [{ type: 'event', key: 'app', operator: 'exact', value: [config.app] }] }
+      : {};
     const eventNames = Object.keys(config.events);
     const eventLabels = config.events;
     const dateFrom = rangeToDateFrom(range);
@@ -106,6 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
       dateRange: { date_from: dateFrom },
       interval,
+      ...appFilter,
     };
 
     const breakdownQuery = config.breakdownEvent ? {
@@ -123,6 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       dateRange: { date_from: dateFrom },
       interval,
+      ...appFilter,
     } : null;
 
     const [trendsResult, breakdownResult] = await Promise.all([

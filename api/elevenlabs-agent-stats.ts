@@ -88,6 +88,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const successful = conversations.filter((c) => c.call_successful === 'success').length;
     const failed = conversations.filter((c) => c.call_successful === 'failure').length;
     const evaluated = successful + failed; // exclude 'unknown' from the denominator
+    // message_count includes the agent's greeting: <=1 means the visitor never
+    // said anything (often mic/audio trouble); >=4 is a real back-and-forth.
+    const noReply = conversations.filter((c) => c.message_count <= 1).length;
+    const engaged = conversations.filter((c) => c.message_count >= 4).length;
 
     // Sort recent (most recent first) and take up to 20.
     const recentConversations = [...conversations]
@@ -114,6 +118,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         successRate: evaluated > 0 ? successful / evaluated : 0,
         successful,
         failed,
+        noReply,
+        engaged,
       },
       recentConversations,
     });
