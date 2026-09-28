@@ -5,6 +5,21 @@ const POSTHOG_HOST = 'https://us.posthog.com';
 
 const POSTHOG_PROJECT_ID = 367489;
 
+/**
+ * An events key is an event name, optionally narrowed to one property value:
+ * `stella_callout|action=used` counts only stella_callout events with action "used".
+ */
+function eventsNode(key: string) {
+  const [event, filter] = key.split('|');
+  const [property, value] = filter ? filter.split('=') : [];
+  return {
+    kind: 'EventsNode',
+    event,
+    math: 'total',
+    ...(property ? { properties: [{ type: 'event', key: property, operator: 'exact', value: [value] }] } : {}),
+  };
+}
+
 interface ProjectConfig {
   /** Value of the `app` super property: several apps share this PostHog project. */
   app?: string;
@@ -21,6 +36,8 @@ const PROJECT_CONFIGS: Record<string, ProjectConfig> = {
       planet_viewed: 'Planets Viewed',
       moon_viewed: 'Moons Viewed',
       sun_viewed: 'Sun Viewed',
+      'stella_callout|action=shown': 'Stella Tip Shown',
+      'stella_callout|action=used': 'Stella Tip Used',
       voice_agent_activated: 'Stella Button Taps',
       voice_session_connected: 'Stella Connected',
       voice_agent_failed: 'Stella Failures',
@@ -112,11 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const trendsQuery = {
       kind: 'TrendsQuery',
-      series: eventNames.map((event) => ({
-        kind: 'EventsNode',
-        event,
-        math: 'total',
-      })),
+      series: eventNames.map(eventsNode),
       dateRange: { date_from: dateFrom },
       interval,
       ...appFilter,
