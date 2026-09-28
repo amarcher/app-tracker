@@ -21,7 +21,7 @@ export function storeSummary(store: StoreName, rows: StoreDay[], expectedDates: 
   const complete = expectedDates.every(date => timeseries.some(row => row.date === date));
   return { store, available: timeseries.length > 0, timeseries,
     downloads: timeseries.length ? timeseries.reduce((sum, row) => sum + row.downloads, 0) : null,
-    latest: timeseries.at(-1) ?? null, complete,
+    latest: timeseries[timeseries.length - 1] ?? null, complete,
     reportingTimezone: store === 'amazon' ? 'UTC' : 'America/Los_Angeles',
     recordedSince: null, recordedDownloads: null, recordedFromStart: false };
 }

@@ -423,8 +423,8 @@ function App() {
                 {agentStats.totals.engaged !== undefined && (
                   <MetricCard
                     label="Visitors Who Talked Back"
-                    value={agentStats.totals.engaged}
-                    subtitle={`${agentStats.totals.noReply ?? 0} never replied`}
+                    value={`${agentStats.totals.engaged} / ${agentStats.totals.turnsSampled ?? 0}`}
+                    subtitle={`recent sessions · ${agentStats.totals.noReply ?? 0} never spoke`}
                   />
                 )}
                 <MetricCard
@@ -445,6 +445,7 @@ function App() {
                           <th>Summary</th>
                           <th>Duration</th>
                           <th>Messages</th>
+                          <th>Visitor Turns</th>
                           <th>Status</th>
                         </tr>
                       </thead>
@@ -457,6 +458,7 @@ function App() {
                             <td className="page-path">{c.summaryTitle ?? '—'}</td>
                             <td>{formatDuration(c.durationSecs)}</td>
                             <td>{c.messageCount}</td>
+                            <td>{c.userTurns ?? '—'}</td>
                             <td>{c.callSuccessful}</td>
                           </tr>
                         ))}
