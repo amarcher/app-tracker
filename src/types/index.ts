@@ -170,6 +170,10 @@ export interface AgentStatsResponse {
     successRate: number;
     successful?: number;
     failed?: number;
+    /** Sessions where the visitor never spoke (agent greeting only). */
+    noReply?: number;
+    /** Sessions with a real back-and-forth (4+ messages). */
+    engaged?: number;
   };
   recentConversations: AgentStatsConversation[];
 }

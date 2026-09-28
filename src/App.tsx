@@ -420,6 +420,13 @@ function App() {
                   subtitle={`avg ${formatDuration(agentStats.totals.avgDurationSecs)}`}
                 />
                 <MetricCard label="Messages" value={agentStats.totals.messages} />
+                {agentStats.totals.engaged !== undefined && (
+                  <MetricCard
+                    label="Visitors Who Talked Back"
+                    value={agentStats.totals.engaged}
+                    subtitle={`${agentStats.totals.noReply ?? 0} never replied`}
+                  />
+                )}
                 <MetricCard
                   label="Success Rate"
                   value={agentStats.totals.conversations > 0
