@@ -8,10 +8,6 @@
     {
       "path": "/api/business?action=sync&range=90d",
       "schedule": "40 9 * * *"
-    },
-    {
-      "path": "/api/elevenlabs-credit-alert",
-      "schedule": "5 * * * *"
     }
   ]
 }
