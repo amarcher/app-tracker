@@ -12,6 +12,7 @@ const summary: BusinessSummary = {
   apps: [
     { project: 'space-race', name: 'Space Race', stores: [store('apple', 28, true), store('amazon', 1, true), store('google', 0, true)] },
     { project: 'fable-designer', name: 'Fable Reader', stores: [store('apple', 12, true), store('amazon', 4, false), store('google', null, false)] },
+    { project: 'crossword-clash', name: 'Crossword Clash', stores: [store('apple', 3, true), store('google', 5, true)] },
   ],
 };
 
@@ -26,6 +27,8 @@ describe('Businesses all-time installs', () => {
     expect(within(space).getAllByRole('cell').map(cell => cell.textContent)).toEqual(['28', '1', '0', '29']);
     const fable = within(table).getByRole('row', { name: /Fable Reader/ });
     expect(within(fable).getAllByRole('cell').map(cell => cell.textContent)).toEqual(['12', '4*', '—', '—']);
+    const crossword = within(table).getByRole('row', { name: /Crossword Clash/ });
+    expect(within(crossword).getAllByRole('cell').map(cell => cell.textContent)).toEqual(['3', 'Not listed', '5', '8']);
   });
 });
 

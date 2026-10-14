@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { loadAppStore } from '../app-store.js';
 import { loadAmazonAppstore } from '../amazon-appstore.js';
 import { loadGooglePlay } from './google-play.js';
-import { STORE_APPS, storeSource, trustedLegacyStore } from './store-apps.js';
+import { STORE_APPS, appStores, storeSource, trustedLegacyStore } from './store-apps.js';
 import { loadSocialReels, SOCIAL_ACCOUNTS } from './social-reels.js';
 import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, SocialPlatformSummary, StoreDay, StoreName } from '../../src/types/business.js';
 
@@ -167,7 +167,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
     } catch { result.fableReason = 'Fable business figures are unavailable. Check the connection in Fable admin.'; }
   })();
   result.apps = await Promise.all(Object.entries(STORE_APPS).map(async ([project, app]) => {
-    const names: StoreName[] = app.googlePrefix ? ['apple', 'amazon', 'google'] : ['apple', 'amazon'];
+    const names: StoreName[] = appStores(project);
     const reports = await Promise.allSettled(names.map(store => store === 'apple' ? loadAppStore(project, `${days}d`)
       : store === 'amazon' ? loadAmazonAppstore(project, `${days}d`) : loadGooglePlay(project, `${days}d`)));
     const stores = await Promise.all(reports.map(async (report, index) => {

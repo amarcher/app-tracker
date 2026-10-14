@@ -19,7 +19,7 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 | Animal Pen Pals | animalpenpals.tech | Anthropic + ElevenLabs TTS |
 | Space Explorer | spaceexplorer.tech | — |
 | Periodic Table | periodictable.tech | — |
-| Crossword Clash | crosswordclash.com | Anthropic + ElevenLabs TTS |
+| Crossword Clash | crosswordclash.com | Anthropic + ElevenLabs TTS; App Store Connect + Google Play |
 | Delivery Picker | ticketfordinner.com | Anthropic |
 | Superbowl Squares | superbowl-squares.com | — |
 | Tabbit Rabbit | tabbitrabbit.com | Anthropic |

@@ -246,7 +246,7 @@ export async function loadAmazonAppstore(project: string, range = '30d') {
     const days = Math.min(parseInt(range.replace('d', ''), 10) || 30, 90);
 
     const app = STORE_APPS[project];
-    if (!app) {
+    if (!app?.asin) {
       return ({ connected: false, reason: `No Amazon Appstore app configured for ${project}` });
     }
 

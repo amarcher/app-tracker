@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
 import { businessAccess, sessionCookie, verifyTicket } from '../_shared/business-access';
 import { storeSummary, summarizeBusinessDays, validBusinessReport } from '../_shared/business-data';
-import { amazonCredentials, appleCredentials, mapBounded, STORE_APPS } from '../_shared/store-apps';
+import { amazonCredentials, appleCredentials, appStores, mapBounded, STORE_APPS, storeSource } from '../_shared/store-apps';
 import type { BusinessDay } from '../../src/types/business';
 const secret = 'private-test-business-read-token-123456789';
 const ticket = (purpose: string, exp: number) => {
@@ -51,8 +51,18 @@ describe('honest aggregate reporting', () => {
     expect(validBusinessReport({ ...report, timeseries: [day, day] }, 2)).toBe(false);
     expect(validBusinessReport({ ...report, timeseries: [{ ...day, revenueCents: undefined }] }, 1)).toBe(false);
   });
+  it('reports an app only on the stores it is listed on', () => {
+    expect(appStores('space-race')).toEqual(['apple', 'amazon', 'google']);
+    expect(appStores('crossword-clash')).toEqual(['apple', 'google']);
+    expect(appStores('unknown')).toEqual([]);
+    expect(storeSource('crossword-clash', 'google')).toBe('google:FABLE_PLAY:com.crosswordclash.app');
+    expect(() => storeSource('crossword-clash', 'amazon')).toThrow();
+  });
   it('uses distinct explicit identifiers and bounds report concurrency', async () => {
-    expect(new Set(Object.values(STORE_APPS).map(app => app.asin)).size).toBe(2);
+    const asins = Object.values(STORE_APPS).flatMap(app => app.asin ?? []);
+    expect(new Set(asins).size).toBe(asins.length);
+    expect(new Set(Object.values(STORE_APPS).map(app => app.appleId)).size).toBe(Object.keys(STORE_APPS).length);
+    expect(new Set(Object.values(STORE_APPS).map(app => app.packageName)).size).toBe(Object.keys(STORE_APPS).length);
     let active = 0, peak = 0;
     const result = await mapBounded([1, 2, 3, 4, 5], async value => { active++; peak = Math.max(active, peak); await new Promise(resolve => setTimeout(resolve, 5)); active--; return value * 2; }, 2);
     expect(result).toEqual([2, 4, 6, 8, 10]);

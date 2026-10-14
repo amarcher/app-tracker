@@ -17,10 +17,12 @@ function AllTimeInstalls({ apps }: { apps: BusinessSummary['apps'] }) {
       <thead><tr><th scope="col">App</th>{STORE_ORDER.map(store => <th scope="col" key={store}>{STORE_LABELS[store]}</th>)}<th scope="col">All stores</th></tr></thead>
       <tbody>{apps.map(app => {
         const cells = STORE_ORDER.map(name => app.stores.find(store => store.store === name));
-        const total = cells.every(store => store?.recordedDownloads != null && store.recordedFromStart)
-          ? cells.reduce((sum, store) => sum + store!.recordedDownloads!, 0) : null;
+        // An app is only totalled over the stores it is listed on.
+        const listed = cells.filter(store => store !== undefined);
+        const total = listed.every(store => store.recordedDownloads != null && store.recordedFromStart)
+          ? listed.reduce((sum, store) => sum + store.recordedDownloads!, 0) : null;
         return <tr key={app.project}><th scope="row">{app.name}</th>
-          {cells.map((store, index) => <td key={STORE_ORDER[index]}>{store?.recordedDownloads == null ? '—'
+          {cells.map((store, index) => <td key={STORE_ORDER[index]}>{!store ? 'Not listed' : store.recordedDownloads == null ? '—'
             : <>{store.recordedDownloads.toLocaleString()}{store.recordedFromStart ? null : <span title={`Recorded since ${store.recordedSince}`}>*</span>}</>}</td>)}
           <td>{total === null ? '—' : total.toLocaleString()}</td></tr>;
       })}</tbody>
