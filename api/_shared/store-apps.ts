@@ -1,11 +1,21 @@
 /** Public store identities; credentials remain in server environment variables.
  * `historyFrom` precedes each app's first release on any store (Space Race: App Store 2026-07-13;
- * Fable Reader: Amazon before its 2026-09-11 App Store release), so all-time totals start there. */
-export const STORE_APPS: Record<string, { name: string; appleId: string; asin: string; packageName: string; ascPrefix: string; amazonPrefix: string; googlePrefix?: string; historyFrom: string }> = {
+ * Fable Reader: Amazon before its 2026-09-11 App Store release; Crossword Clash: Google Play 2026-10-13),
+ * so all-time totals start there. An app with no `asin` is not sold on Amazon. */
+export const STORE_APPS: Record<string, { name: string; appleId: string; asin?: string; packageName: string; ascPrefix: string; amazonPrefix?: string; googlePrefix?: string; historyFrom: string }> = {
   // Both apps publish from the same Fable Designer Play org account, so they share its report bucket and reporting service account.
   'space-race': { name: 'Space Race: 1000 Light-Years', appleId: '6788064058', asin: 'B0GXHBHD78', packageName: 'tech.spaceexplorer.spacerace', ascPrefix: 'ASC', amazonPrefix: 'AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY', historyFrom: '2026-07-01' },
   'fable-designer': { name: 'Fable Reader by Fable Designer', appleId: '6807123917', asin: 'B0HGTXJ7QQ', packageName: 'com.fabledesigner.reader', ascPrefix: 'FABLE_ASC', amazonPrefix: 'FABLE_AMAZON_REPORTING', googlePrefix: 'FABLE_PLAY', historyFrom: '2026-07-01' },
+  // Apple personal team (same key as Space Race); Play under the Fable Designer org account. Not on Amazon.
+  'crossword-clash': { name: 'Crossword Clash', appleId: '6811111993', packageName: 'com.crosswordclash.app', ascPrefix: 'ASC', googlePrefix: 'FABLE_PLAY', historyFrom: '2026-10-01' },
 };
+
+/** The stores an app is listed on, in display order. */
+export function appStores(project: string): ('apple' | 'amazon' | 'google')[] {
+  const app = STORE_APPS[project];
+  if (!app) return [];
+  return ['apple' as const, ...(app.asin ? ['amazon' as const] : []), ...(app.googlePrefix ? ['google' as const] : [])];
+}
 
 export async function mapBounded<T, R>(items: T[], worker: (item: T) => Promise<R>, concurrency = 3): Promise<R[]> {
   const results = new Array<R>(items.length);
@@ -35,7 +45,7 @@ export function amazonCredentials(project: string, env = process.env) {
 /** Public provenance, not a key or token. Legacy Fable/Amazon rows used the wrong account. */
 export function storeSource(project: string, store: 'apple' | 'amazon' | 'google') {
   const app = STORE_APPS[project];
-  if (!app) throw new Error('Unknown store project');
+  if (!app || !appStores(project).includes(store)) throw new Error('Unknown store project');
   if (store === 'google') return `google:${app.googlePrefix}:${app.packageName}`;
   return `${store}:${store === 'apple' ? app.ascPrefix : app.amazonPrefix}:${store === 'apple' ? app.appleId : app.asin}`;
 }

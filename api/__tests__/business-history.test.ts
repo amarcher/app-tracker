@@ -30,7 +30,8 @@ it('retains recorded download totals when the selected period has no store repor
   });
 
   const report = await collectBusiness(7, true);
-  expect(query).toHaveBeenCalledTimes(6);
+  expect(query).toHaveBeenCalledTimes(8);
+  expect(report.apps.find(app => app.project === 'crossword-clash')!.stores.map(store => store.store)).toEqual(['apple', 'google']);
   for (const app of report.apps) for (const store of app.stores) {
     expect(store.downloads).toBeNull();
     expect(store.timeseries).toEqual([]);
@@ -59,7 +60,7 @@ it('claims an all-time total only once a successful report window reaches the fi
   expect(apple('space-race')).toMatchObject({ recordedDownloads: 40, recordedFromStart: true });
   expect(apple('fable-designer').recordedFromStart).toBe(false);
   // Only stores that returned a report extend coverage, from the start of the requested window.
-  expect(coverage.map(([project, store]) => `${project}:${store}`)).toEqual(['space-race:apple', 'fable-designer:apple']);
+  expect(coverage.map(([project, store]) => `${project}:${store}`)).toEqual(['space-race:apple', 'fable-designer:apple', 'crossword-clash:apple']);
   expect(coverage.every(values => values[3] === coverage[0][3])).toBe(true);
 });
 

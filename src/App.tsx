@@ -31,7 +31,7 @@ const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boo
   { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
   { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech', appStore: true, amazonAppstore: true, googlePlay: true },
   { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true },
+  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true, appStore: true, googlePlay: true },
   { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
   { value: 'superbowl-squares', label: 'Superbowl Squares', domain: 'superbowl-squares.com' },
   { value: 'tabbit-rabbit', label: 'Tabbit Rabbit', domain: 'tabbitrabbit.com', hasApiRoutes: true },
