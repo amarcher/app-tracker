@@ -30,11 +30,11 @@ export function SearchConsoleSurvey({ data, projectLabels }: SearchConsoleSurvey
     <section className="section">
       <h2>Search Console Coverage</h2>
       <div className="section-note">
-        Surveying tracked project domains against accessible Search Console properties for {data.dateRange.startDate} to {data.dateRange.endDate}.
+        Search results are filtered to each project hostname (including www), excluding sibling subdomains. Surveying accessible properties for {data.dateRange.startDate} to {data.dateRange.endDate}.
       </div>
       {data.setupError && (
         <div className="empty-panel search-setup-panel">
-          Search Console API setup is incomplete. Enable the API for the Google project used by the GA4 service account, then rerun this survey.
+          Search Console data could not be loaded. Check API availability, property configuration and service-account access.
         </div>
       )}
       <div className="table-section">
@@ -57,8 +57,8 @@ export function SearchConsoleSurvey({ data, projectLabels }: SearchConsoleSurvey
                   <td className="page-path">{project.domain}</td>
                   <td><span className={statusClass(project.status)}>{statusLabel(project.status)}</span></td>
                   <td className="page-path">{project.siteUrl ?? '—'}</td>
-                  <td>{project.clicks.toLocaleString()}</td>
-                  <td>{project.impressions.toLocaleString()}</td>
+                  <td>{project.status === 'missing-property' || project.status === 'query-error' ? '—' : project.clicks.toLocaleString()}</td>
+                  <td>{project.status === 'missing-property' || project.status === 'query-error' ? '—' : project.impressions.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

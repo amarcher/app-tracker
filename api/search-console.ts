@@ -3,7 +3,7 @@ import {
   dateRangeForSearchConsole,
   findSiteForProject,
   listSearchConsoleSites,
-  querySearchAnalytics,
+  queryProjectSearchAnalytics,
 } from './_shared/search-console.js';
 
 function metric(row: { clicks?: number; impressions?: number; ctr?: number; position?: number }) {
@@ -44,18 +44,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     const [totalsRows, queryRows, pageRows, dateRows] = await Promise.all([
-      querySearchAnalytics(site.siteUrl, { ...base, rowLimit: 1 }),
-      querySearchAnalytics(site.siteUrl, {
+      queryProjectSearchAnalytics(project, site.siteUrl, { ...base, rowLimit: 1 }),
+      queryProjectSearchAnalytics(project, site.siteUrl, {
         ...base,
         dimensions: ['query'],
         rowLimit: 20,
       }),
-      querySearchAnalytics(site.siteUrl, {
+      queryProjectSearchAnalytics(project, site.siteUrl, {
         ...base,
         dimensions: ['page'],
         rowLimit: 20,
       }),
-      querySearchAnalytics(site.siteUrl, {
+      queryProjectSearchAnalytics(project, site.siteUrl, {
         ...base,
         dimensions: ['date'],
         rowLimit: 100,

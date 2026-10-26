@@ -9,7 +9,7 @@ interface HomeOverviewProps {
 
 function priorLabel(range: string): string {
   switch (range) {
-    case '1d': return 'vs prior 24h';
+    case '1d': return 'vs prior 24 completed hours';
     case '7d': return 'vs prior 7 days';
     case '30d': return 'vs prior 30 days';
     case '90d': return 'vs prior 90 days';
@@ -17,8 +17,8 @@ function priorLabel(range: string): string {
   }
 }
 
-function formatChange(pct: number): { text: string; className: string } {
-  if (!isFinite(pct) || isNaN(pct)) return { text: '—', className: 'change-neutral' };
+function formatChange(pct: number | null): { text: string; className: string } {
+  if (pct === null || !isFinite(pct) || isNaN(pct)) return { text: '—', className: 'change-neutral' };
   const rounded = Math.round(pct);
   if (rounded === 0) return { text: '0%', className: 'change-neutral' };
   if (rounded > 0) return { text: `▲ ${rounded}%`, className: 'change-up' };
@@ -40,9 +40,9 @@ export function HomeOverview({ data, projectLabels, onSelectProject }: HomeOverv
     (s, p) => s + (p.previous?.users ?? 0),
     0,
   );
-  const aggregateChange = prevTotalUsers > 0
+  const aggregateChange = data.projects.every(p => p.previous !== null) && prevTotalUsers > 0
     ? ((totalUsers - prevTotalUsers) / prevTotalUsers) * 100
-    : 0;
+    : null;
   const aggregateChangeFmt = formatChange(aggregateChange);
 
   // Trends: only include projects with enough prior volume to avoid noise
@@ -50,11 +50,11 @@ export function HomeOverview({ data, projectLabels, onSelectProject }: HomeOverv
     (p) => p.previous && p.previous.users >= MIN_BASELINE_USERS,
   );
   const sortedByChange = [...trendCandidates].sort(
-    (a, b) => b.usersChangePct - a.usersChangePct,
+    (a, b) => (b.usersChangePct ?? 0) - (a.usersChangePct ?? 0),
   );
-  const topGainers = sortedByChange.filter((p) => p.usersChangePct > 0).slice(0, 3);
+  const topGainers = sortedByChange.filter((p) => (p.usersChangePct ?? 0) > 0).slice(0, 3);
   const topDecliners = sortedByChange
-    .filter((p) => p.usersChangePct < 0)
+    .filter((p) => (p.usersChangePct ?? 0) < 0)
     .slice(-3)
     .reverse();
 
@@ -82,19 +82,27 @@ export function HomeOverview({ data, projectLabels, onSelectProject }: HomeOverv
     <>
       <section className="section">
         <h2>Overview</h2>
+        <p className="section-note">{data.note} Users are deduplicated within each project, not across projects.</p>
+        {(data.unavailable?.length ?? 0) > 0 && (
+          <div className="error-banner" role="status">
+            Partial coverage: {data.projects.length} of {data.projects.length + (data.unavailable?.length ?? 0)} projects available.
+            <ul>{data.unavailable?.map(p => <li key={p.project}>{label(p.project)}: {p.reason}</li>)}</ul>
+          </div>
+        )}
+        {(data.comparisonUnavailable?.length ?? 0) > 0 && <p role="status">Prior-period data unavailable for {data.comparisonUnavailable?.map(label).join(', ')}. Aggregate change is unavailable.</p>}
         <div className="metrics-row">
           <MetricCard
-            label="Total Users"
-            value={totalUsers}
+            label="Users Across Projects"
+            value={data.projects.length ? totalUsers : '—'}
             subtitle={`${aggregateChangeFmt.text} ${priorLabel(data.range)}`}
           />
-          <MetricCard label="Sessions" value={totalSessions} />
-          <MetricCard label="Pageviews" value={totalPageviews} />
-          <MetricCard label="New Users" value={totalNewUsers} />
+          <MetricCard label="Sessions" value={data.projects.length ? totalSessions : '—'} />
+          <MetricCard label="Pageviews" value={data.projects.length ? totalPageviews : '—'} />
+          <MetricCard label="New Users" value={data.projects.length ? totalNewUsers : '—'} />
           <MetricCard
             label="Active Projects"
             value={data.projects.filter((p) => p.current.users > 0).length}
-            subtitle={`of ${data.projects.length} tracked`}
+            subtitle={`of ${data.projects.length + (data.unavailable?.length ?? 0)} tracked`}
           />
         </div>
       </section>

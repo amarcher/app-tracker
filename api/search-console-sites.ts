@@ -4,7 +4,7 @@ import {
   dateRangeForSearchConsole,
   findSiteForProject,
   listSearchConsoleSites,
-  querySearchAnalytics,
+  queryProjectSearchAnalytics,
 } from './_shared/search-console.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         try {
-          const rows = await querySearchAnalytics(site.siteUrl, {
+          const rows = await queryProjectSearchAnalytics(project, site.siteUrl, {
             startDate,
             endDate,
             searchType: 'web',

@@ -8,7 +8,7 @@ const env = (name: string) => (process.env[name] ?? '').trim();
  * Single source of truth — both the per-project traffic route
  * (`ga-traffic.ts`) and the Home overview (`traffic-overview.ts`) read this.
  * Add a new project here ONCE. An empty string means the property env var
- * isn't set; callers filter those out (`filter(([, id]) => !!id)`).
+ * isn't set; the overview reports those projects as unavailable.
  */
 export const GA4_PROPERTIES: Record<string, string> = {
   'animal-penpals': env('GA4_PROPERTY_ID'),

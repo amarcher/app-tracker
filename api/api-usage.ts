@@ -1,32 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 
-// Pricing per million tokens/characters (approximate, early 2026)
-const PRICING: Record<string, { inputPerM: number; outputPerM: number; charsPerM?: number }> = {
-  // Anthropic
-  'claude-sonnet-4-20250514': { inputPerM: 3, outputPerM: 15 },
-  'claude-sonnet-4-6': { inputPerM: 3, outputPerM: 15 },
-  'claude-haiku-4-5-20251001': { inputPerM: 0.80, outputPerM: 4 },
-  'claude-opus-4-7': { inputPerM: 15, outputPerM: 75 },
-  // OpenAI
-  'gpt-4o': { inputPerM: 2.50, outputPerM: 10 },
-  'gpt-4o-mini': { inputPerM: 0.15, outputPerM: 0.60 },
-  'gpt-4.1': { inputPerM: 2, outputPerM: 8 },
-  'gpt-4.1-mini': { inputPerM: 0.40, outputPerM: 1.60 },
-  'gpt-4.1-nano': { inputPerM: 0.10, outputPerM: 0.40 },
-  'o3-mini': { inputPerM: 1.10, outputPerM: 4.40 },
-};
-const ELEVENLABS_CHARS_PER_M = 0.30;
-
-function estimateCost(service: string, model: string | null, tokensIn: number, tokensOut: number, characters: number): number {
-  if ((service === 'anthropic' || service === 'openai') && model && PRICING[model]) {
-    return (tokensIn * PRICING[model].inputPerM + tokensOut * PRICING[model].outputPerM) / 1_000_000;
-  }
-  if (service === 'elevenlabs') {
-    return (characters * ELEVENLABS_CHARS_PER_M) / 1_000_000;
-  }
-  return 0;
-}
+import { estimateCost, COST_SCOPE } from './_shared/usage-pricing.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -59,9 +34,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Calculate estimated costs
     let totalCost = 0;
     const totalsWithCost = totals.map((t: any) => {
-      const cost = estimateCost(t.service, t.model, Number(t.tokens_in), Number(t.tokens_out), Number(t.characters));
-      totalCost += cost;
-      return { ...t, estimatedCost: cost };
+      const cost = estimateCost(t.service, t.model, Number(t.tokens_in), Number(t.tokens_out));
+      totalCost += cost ?? 0;
+      return { ...t, estimatedCost: cost ?? 0, unpricedRequests: cost === null ? Number(t.requests) : 0 };
     });
 
     // Aggregate totals by service (collapse model-level rows)
@@ -74,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         existing.characters += Number(t.characters);
         existing.requests += Number(t.requests);
         existing.estimatedCost += t.estimatedCost;
+        existing.unpricedRequests += t.unpricedRequests;
       } else {
         serviceMap.set(t.service, {
           service: t.service,
@@ -82,6 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           characters: Number(t.characters),
           requests: Number(t.requests),
           estimatedCost: t.estimatedCost,
+          unpricedRequests: t.unpricedRequests,
         });
       }
     }
@@ -92,6 +69,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       totals: Array.from(serviceMap.values()),
       recentCalls,
       totalCost,
+      unpricedRequests: totalsWithCost.reduce((sum, t) => sum + t.unpricedRequests, 0),
+      unpricedUsage: totalsWithCost.filter(t => t.unpricedRequests > 0).map(t => ({ service: t.service, model: t.model, requests: t.unpricedRequests })),
+      costScope: COST_SCOPE,
     });
   } catch (error) {
     console.error('API usage query error:', error);

@@ -1,9 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { parseDateHour, tzForProject } from './_shared/timezone.js';
+import { fetchTrafficTotals, trafficWindow, trafficNote } from './_shared/traffic.js';
 import {
   GA4_PROPERTIES as PROPERTIES,
   getGa4Client as getClient,
-  daysAgoDate,
 } from './_shared/ga4.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -12,28 +11,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const days = parseInt(range.replace('d', ''), 10) || 30;
     const project = (req.query.project as string) || 'animal-penpals';
 
-    const propertyId = PROPERTIES[project] || PROPERTIES['animal-penpals'];
+    const propertyId = PROPERTIES[project];
     if (!propertyId) {
       return res.status(400).json({ error: `No GA4 property configured for project: ${project}` });
     }
 
     const client = getClient();
-    // For days=1: rolling 24h using `dateHour` dimension (fetch 3 calendar days
-    // to cover the last 48h window in any timezone).
-    // For days>1: last N calendar days inclusive of today, matching
-    // api/traffic-overview.ts.
     const isRolling24h = days === 1;
-    const tz = tzForProject(project);
-    // Timeseries query needs 3 calendar days of hourly data to cover the
-    // rolling 48h window in any tz. topPages/sources can use a tighter range.
-    const startDate = isRolling24h ? daysAgoDate(2) : daysAgoDate(days - 1);
-    const endDate = 'today';
-    const listStartDate = isRolling24h ? daysAgoDate(1) : startDate;
+    const window = trafficWindow(days, project);
 
-    const [timeseriesResponse, topPagesResponse, sourcesResponse] = await Promise.all([
+    const [timeseriesResponse, topPagesResponse, sourcesResponse, totals] = await Promise.all([
       client.runReport({
         property: `properties/${propertyId}`,
-        dateRanges: [{ startDate, endDate }],
+        ...window,
         dimensions: [{ name: isRolling24h ? 'dateHour' : 'date' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -49,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
       client.runReport({
         property: `properties/${propertyId}`,
-        dateRanges: [{ startDate: listStartDate, endDate }],
+        ...window,
         dimensions: [{ name: 'pagePath' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -60,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
       client.runReport({
         property: `properties/${propertyId}`,
-        dateRanges: [{ startDate: listStartDate, endDate }],
+        ...window,
         dimensions: [
           { name: 'sessionSource' },
           { name: 'sessionMedium' },
@@ -74,9 +64,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: 10,
       }),
+      fetchTrafficTotals(client, propertyId, window),
     ]);
 
-    const allPoints = (timeseriesResponse[0].rows || []).map((row) => ({
+    const timeseries = (timeseriesResponse[0].rows || []).map((row) => ({
       date: row.dimensionValues![0].value!,
       pageviews: parseInt(row.metricValues![0].value!, 10),
       sessions: parseInt(row.metricValues![1].value!, 10),
@@ -86,14 +77,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       avgSessionDuration: parseFloat(row.metricValues![5].value!),
       bounceRate: parseFloat(row.metricValues![6].value!),
     }));
-
-    // For rolling 24h: keep only hours within the last 24h wall-clock window.
-    const timeseries = isRolling24h
-      ? allPoints.filter((p) => {
-          const ageMs = Date.now() - parseDateHour(p.date, tz);
-          return ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
-        })
-      : allPoints;
 
     const topPages = (topPagesResponse[0].rows || []).map((row) => ({
       path: row.dimensionValues![0].value!,
@@ -110,25 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       avgSessionDuration: parseFloat(row.metricValues![3].value!),
     }));
 
-    const totalSessions = timeseries.reduce((s, d) => s + d.sessions, 0);
-    const totals = {
-      pageviews: timeseries.reduce((s, d) => s + d.pageviews, 0),
-      sessions: totalSessions,
-      users: timeseries.reduce((s, d) => s + d.users, 0),
-      newUsers: timeseries.reduce((s, d) => s + d.newUsers, 0),
-      engagementRate: totalSessions > 0
-        ? timeseries.reduce((s, d) => s + d.engagementRate * d.sessions, 0) / totalSessions
-        : 0,
-      avgSessionDuration: totalSessions > 0
-        ? timeseries.reduce((s, d) => s + d.avgSessionDuration * d.sessions, 0) / totalSessions
-        : 0,
-      bounceRate: totalSessions > 0
-        ? timeseries.reduce((s, d) => s + d.bounceRate * d.sessions, 0) / totalSessions
-        : 0,
-    };
-
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    res.json({ timeseries, topPages, sources, totals });
+    res.json({ timeseries, topPages, sources, totals, note: trafficNote(days) });
   } catch (error) {
     console.error('GA4 API error:', error);
     res.status(500).json({ error: 'Failed to fetch GA4 data' });

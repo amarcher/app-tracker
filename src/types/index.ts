@@ -25,6 +25,7 @@ export interface TrafficSource {
 }
 
 export interface GaTrafficResponse {
+  note?: string;
   timeseries: TrafficDataPoint[];
   topPages: TopPage[];
   sources: TrafficSource[];
@@ -85,6 +86,9 @@ export interface ApiUsageRecentCall {
 }
 
 export interface ApiUsageResponse {
+  costScope?: string;
+  unpricedRequests?: number;
+  unpricedUsage?: Array<{ service: string; model: string | null; requests: number }>;
   timeseries: ApiUsageTimeseriesRow[];
   totals: ApiUsageTotalRow[];
   recentCalls: ApiUsageRecentCall[];
@@ -116,6 +120,7 @@ export interface CdnResponse {
 }
 
 export interface PortfolioProject {
+  unpricedRequests?: number;
   project: string;
   requests: number;
   tokensIn: number;
@@ -125,6 +130,7 @@ export interface PortfolioProject {
 }
 
 export interface PortfolioResponse {
+  costScope?: string;
   projects: PortfolioProject[];
 }
 
@@ -141,11 +147,14 @@ export interface TrafficOverviewProject {
   project: string;
   current: TrafficOverviewProjectTotals;
   previous: TrafficOverviewProjectTotals | null;
-  usersChangePct: number;
-  pageviewsChangePct: number;
+  usersChangePct: number | null;
+  pageviewsChangePct: number | null;
 }
 
 export interface TrafficOverviewResponse {
+  unavailable?: Array<{ project: string; reason: string }>;
+  comparisonUnavailable?: string[];
+  note?: string;
   projects: TrafficOverviewProject[];
   range: string;
 }

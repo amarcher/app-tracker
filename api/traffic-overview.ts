@@ -1,200 +1,39 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { BetaAnalyticsDataClient } from '@google-analytics/data';
-import { parseDateHour, tzForProject } from './_shared/timezone.js';
-import {
-  GA4_PROPERTIES as PROPERTIES,
-  getGa4Client as getClient,
-  daysAgoDate,
-} from './_shared/ga4.js';
-
-interface ProjectTotals {
-  pageviews: number;
-  sessions: number;
-  users: number;
-  newUsers: number;
-  engagementRate: number;
-  avgSessionDuration: number;
-}
-
-const EMPTY_TOTALS: ProjectTotals = {
-  pageviews: 0, sessions: 0, users: 0, newUsers: 0, engagementRate: 0, avgSessionDuration: 0,
-};
-
-async function fetchTotals(
-  client: BetaAnalyticsDataClient,
-  propertyId: string,
-  startDate: string,
-  endDate: string,
-): Promise<ProjectTotals> {
-  const [response] = await client.runReport({
-    property: `properties/${propertyId}`,
-    dateRanges: [{ startDate, endDate }],
-    metrics: [
-      { name: 'screenPageViews' },
-      { name: 'sessions' },
-      { name: 'totalUsers' },
-      { name: 'newUsers' },
-      { name: 'engagementRate' },
-      { name: 'averageSessionDuration' },
-    ],
-  });
-  const row = response.rows?.[0];
-  if (!row) return { ...EMPTY_TOTALS };
-  return {
-    pageviews: parseInt(row.metricValues![0].value!, 10),
-    sessions: parseInt(row.metricValues![1].value!, 10),
-    users: parseInt(row.metricValues![2].value!, 10),
-    newUsers: parseInt(row.metricValues![3].value!, 10),
-    engagementRate: parseFloat(row.metricValues![4].value!),
-    avgSessionDuration: parseFloat(row.metricValues![5].value!),
-  };
-}
-
-// True rolling 24h vs prior 24h, using GA4's dateHour dimension.
-// Returns { current: [now-24h, now], previous: [now-48h, now-24h] }.
-// Note: `totalUsers` summed across hourly rows slightly overcounts users who were
-// active in multiple hours. Pageviews/sessions/newUsers are truly additive.
-// Engagement rate and session duration are re-weighted by sessions.
-// dateHour strings are parsed using the property's configured timezone (see
-// api/_shared/timezone.ts) so the 24h boundary lands on the right wall-clock
-// moment.
-async function fetchRolling24h(
-  client: BetaAnalyticsDataClient,
-  propertyId: string,
-  tz: string,
-): Promise<{ current: ProjectTotals; previous: ProjectTotals }> {
-  // Fetch 3 calendar days of hourly buckets to safely cover the last 48h
-  // regardless of the property's timezone.
-  const [response] = await client.runReport({
-    property: `properties/${propertyId}`,
-    dateRanges: [{ startDate: daysAgoDate(2), endDate: 'today' }],
-    dimensions: [{ name: 'dateHour' }],
-    metrics: [
-      { name: 'screenPageViews' },
-      { name: 'sessions' },
-      { name: 'totalUsers' },
-      { name: 'newUsers' },
-      { name: 'engagementRate' },
-      { name: 'averageSessionDuration' },
-    ],
-    orderBys: [{ dimension: { dimensionName: 'dateHour' } }],
-    limit: 500,
-  });
-
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  const nowMs = Date.now();
-  const current: ProjectTotals = { ...EMPTY_TOTALS };
-  const previous: ProjectTotals = { ...EMPTY_TOTALS };
-  // Weighted accumulators for engagement metrics
-  let curEngSum = 0, curDurSum = 0, curSessWeight = 0;
-  let prevEngSum = 0, prevDurSum = 0, prevSessWeight = 0;
-
-  for (const row of response.rows || []) {
-    const dh = row.dimensionValues![0].value!; // YYYYMMDDHH in property tz
-    const rowMs = parseDateHour(dh, tz);
-    const ageMs = nowMs - rowMs;
-    if (ageMs < 0 || ageMs >= 2 * DAY_MS) continue;
-
-    const pageviews = parseInt(row.metricValues![0].value!, 10);
-    const sessions = parseInt(row.metricValues![1].value!, 10);
-    const users = parseInt(row.metricValues![2].value!, 10);
-    const newUsers = parseInt(row.metricValues![3].value!, 10);
-    const engRate = parseFloat(row.metricValues![4].value!);
-    const avgDur = parseFloat(row.metricValues![5].value!);
-
-    const bucket = ageMs < DAY_MS ? 'current' : 'previous';
-    if (bucket === 'current') {
-      current.pageviews += pageviews;
-      current.sessions += sessions;
-      current.users += users;
-      current.newUsers += newUsers;
-      curEngSum += engRate * sessions;
-      curDurSum += avgDur * sessions;
-      curSessWeight += sessions;
-    } else {
-      previous.pageviews += pageviews;
-      previous.sessions += sessions;
-      previous.users += users;
-      previous.newUsers += newUsers;
-      prevEngSum += engRate * sessions;
-      prevDurSum += avgDur * sessions;
-      prevSessWeight += sessions;
-    }
-  }
-
-  current.engagementRate = curSessWeight > 0 ? curEngSum / curSessWeight : 0;
-  current.avgSessionDuration = curSessWeight > 0 ? curDurSum / curSessWeight : 0;
-  previous.engagementRate = prevSessWeight > 0 ? prevEngSum / prevSessWeight : 0;
-  previous.avgSessionDuration = prevSessWeight > 0 ? prevDurSum / prevSessWeight : 0;
-
-  return { current, previous };
-}
+import { GA4_PROPERTIES, getGa4Client } from './_shared/ga4.js';
+import { fetchTrafficTotals, trafficWindow, trafficNote } from './_shared/traffic.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const range = (req.query.range as string) || '30d';
     const days = parseInt(range.replace('d', ''), 10) || 30;
-
-    // For days=1: true rolling 24h window using the dateHour dimension.
-    // For days>1: last N calendar days (inclusive of today) vs the N days before.
-    const client = getClient();
-    const entries = Object.entries(PROPERTIES).filter(([, id]) => !!id);
-
-    const results = await Promise.all(
-      entries.map(async ([project, propertyId]) => {
-        if (days === 1) {
-          const tz = tzForProject(project);
-          const settled = await Promise.allSettled([fetchRolling24h(client, propertyId, tz)]);
-          const res = settled[0];
-          return {
-            project,
-            current: res.status === 'fulfilled' ? res.value.current : null,
-            previous: res.status === 'fulfilled' ? res.value.previous : null,
-            error: res.status === 'rejected' ? String(res.reason) : null,
-          };
-        }
-        const currentStart = daysAgoDate(days - 1);
-        const currentEnd = 'today';
-        const prevStart = daysAgoDate(days * 2 - 1);
-        const prevEnd = daysAgoDate(days);
-        const [current, previous] = await Promise.allSettled([
-          fetchTotals(client, propertyId, currentStart, currentEnd),
-          fetchTotals(client, propertyId, prevStart, prevEnd),
-        ]);
-        return {
-          project,
-          current: current.status === 'fulfilled' ? current.value : null,
-          previous: previous.status === 'fulfilled' ? previous.value : null,
-          error: current.status === 'rejected' ? String(current.reason) : null,
-        };
-      }),
-    );
-
-    const projects = results
-      .filter((r) => r.current !== null)
-      .map((r) => {
-        const cur = r.current!;
-        const prev = r.previous;
-        const usersChangePct = prev && prev.users > 0
-          ? ((cur.users - prev.users) / prev.users) * 100
-          : cur.users > 0 ? 100 : 0;
-        const pageviewsChangePct = prev && prev.pageviews > 0
-          ? ((cur.pageviews - prev.pageviews) / prev.pageviews) * 100
-          : cur.pageviews > 0 ? 100 : 0;
-        return {
-          project: r.project,
-          current: cur,
-          previous: prev,
-          usersChangePct,
-          pageviewsChangePct,
-        };
-      })
-      .sort((a, b) => b.current.users - a.current.users);
-
+    const client = getGa4Client();
+    const now = Date.now();
+    const results = await Promise.all(Object.entries(GA4_PROPERTIES).map(async ([project, propertyId]) => {
+      if (!propertyId) return { project, current: null, previous: null, reason: 'No GA4 property configured' };
+      const [current, previous] = await Promise.allSettled([
+        fetchTrafficTotals(client, propertyId, trafficWindow(days, project, false, now)),
+        fetchTrafficTotals(client, propertyId, trafficWindow(days, project, true, now)),
+      ]);
+      return {
+        project,
+        current: current.status === 'fulfilled' ? current.value : null,
+        previous: previous.status === 'fulfilled' ? previous.value : null,
+        reason: 'Traffic query failed',
+      };
+    }));
+    const change = (current: number, previous: number | undefined) => previous && previous > 0 ? (current - previous) / previous * 100 : null;
+    const projects = results.flatMap(r => r.current ? [{
+      project: r.project,
+      current: r.current,
+      previous: r.previous,
+      usersChangePct: change(r.current.users, r.previous?.users),
+      pageviewsChangePct: change(r.current.pageviews, r.previous?.pageviews),
+    }] : []).sort((a, b) => b.current.users - a.current.users);
+    const unavailable = results.filter(r => !r.current).map(r => ({ project: r.project, reason: r.reason }));
+    const comparisonUnavailable = projects.filter(p => !p.previous).map(p => p.project);
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    res.json({ projects, range });
-  } catch (error) {
-    console.error('Traffic overview error:', error);
+    res.json({ projects, unavailable, comparisonUnavailable, range, note: trafficNote(days) });
+  } catch {
     res.status(500).json({ error: 'Failed to fetch traffic overview' });
   }
 }
