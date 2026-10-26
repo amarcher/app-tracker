@@ -42,3 +42,14 @@ it('does not price inherited object keys as models', () => {
   expect(estimateCost('openai', 'toString', 100, 100)).toBeNull();
   expect(estimateCost('constructor', 'gpt-4o-mini', 100, 100)).toBeNull();
 });
+it('prices the observed Opus 5.5 model consistently in portfolio and detail', async () => {
+  const opus = { ...row, service: 'anthropic', model: 'claude-opus-5-5' };
+  sql.mockResolvedValueOnce([opus]);
+  const p = response();
+  await portfolio({ query: {} } as never, p as never);
+  expect(p.json.mock.calls[0][0].projects[0]).toMatchObject({ estimatedCost: 24, unpricedRequests: 0 });
+  sql.mockResolvedValueOnce([]).mockResolvedValueOnce([opus]).mockResolvedValueOnce([]);
+  const u = response();
+  await usage({ query: {} } as never, u as never);
+  expect(u.json.mock.calls[0][0]).toMatchObject({ totalCost: 24, unpricedRequests: 0, unpricedUsage: [] });
+});
