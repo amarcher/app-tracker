@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { CdnResponse } from '../src/types/index.js';
 
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN?.trim();
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
@@ -206,8 +207,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }));
     }
 
-    const totals = timeseries.reduce(
-      (acc: any, d: any) => ({
+    const sums = timeseries.reduce(
+      (acc, d) => ({
         bandwidth: acc.bandwidth + d.bytes,
         cachedBandwidth: acc.cachedBandwidth + d.cachedBytes,
         requests: acc.requests + d.requests,
@@ -215,9 +216,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
       { bandwidth: 0, cachedBandwidth: 0, requests: 0, cachedRequests: 0 }
     );
-    totals.cacheHitRatio = totals.requests > 0
-      ? (totals.cachedRequests / totals.requests) * 100
-      : 0;
+    const totals: CdnResponse['totals'] = {
+      ...sums,
+      cacheHitRatio: sums.requests > 0 ? (sums.cachedRequests / sums.requests) * 100 : 0,
+    };
 
     let r2 = null;
     const r2Groups = r2Result?.data?.viewer?.accounts?.[0]?.r2StorageAdaptiveGroups;
