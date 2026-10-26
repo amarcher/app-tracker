@@ -4,6 +4,8 @@
 // These estimates exclude cache/batch discounts, tools, media, tax and contracts.
 const PRICING: Record<string, Record<string, { input: number; output: number }>> = {
   anthropic: {
+    // https://platform.claude.com/docs/en/models/opus-5-5/overview
+    'claude-opus-5-5': { input: 4, output: 20 },
     'claude-sonnet-4-20250514': { input: 3, output: 15 },
     'claude-sonnet-4-6': { input: 3, output: 15 },
     'claude-haiku-4-5-20251001': { input: 1, output: 5 },
