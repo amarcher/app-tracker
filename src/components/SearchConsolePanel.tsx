@@ -22,7 +22,7 @@ export function SearchConsolePanel({ data }: SearchConsolePanelProps) {
     return (
       <div className="empty-panel">
         {data.setupError
-          ? 'Search Console needs setup before data can load. Enable the Search Console API for the Google project used by the service account, then add the service account to each Search Console property.'
+          ? 'Search Console data could not be loaded. Check API availability, property configuration and service-account access.'
           : 'No accessible Search Console property was found for this project. Add the shared Google service account to the domain property, or set a matching GSC_SITE_URL_* env var.'}
       </div>
     );
@@ -31,7 +31,7 @@ export function SearchConsolePanel({ data }: SearchConsolePanelProps) {
   return (
     <>
       <div className="section-note">
-        {data.siteUrl} · final Search Console data from {data.dateRange.startDate} to {data.dateRange.endDate}
+        {data.siteUrl} · filtered to the project hostname (including www), excluding sibling subdomains · final Search Console data from {data.dateRange.startDate} to {data.dateRange.endDate}
       </div>
       <div className="metrics-row">
         <MetricCard label="Search Clicks" value={data.totals.clicks} />

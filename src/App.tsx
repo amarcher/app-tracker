@@ -18,27 +18,14 @@ import { SearchConsoleSurvey } from './components/SearchConsoleSurvey';
 import { Businesses } from './components/Businesses';
 import type { DateRange } from './types';
 import './App.css';
+import { PROJECTS } from './config/projects';
+import { CostCoverage, formatEstimatedCost } from './components/CostCoverage';
 
 const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: '1d', label: '24 hours' },
   { value: '7d', label: '7 days' },
   { value: '30d', label: '30 days' },
   { value: '90d', label: '90 days' },
-];
-
-const PROJECTS: { value: string; label: string; domain: string; cloudflare?: boolean; hasApiRoutes?: boolean; agents?: boolean; posthog?: boolean; appStore?: boolean; amazonAppstore?: boolean; googlePlay?: boolean }[] = [
-  { value: 'animal-penpals', label: 'Animal Pen Pals', domain: 'animalpenpals.tech', cloudflare: true, hasApiRoutes: true, agents: true, posthog: true },
-  { value: 'space-explorer', label: 'Space Explorer', domain: 'spaceexplorer.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'space-race', label: 'Space Race', domain: 'game.spaceexplorer.tech', appStore: true, amazonAppstore: true, googlePlay: true },
-  { value: 'periodic-table', label: 'Periodic Table', domain: 'periodictable.tech', cloudflare: true, agents: true, posthog: true },
-  { value: 'crossword-clash', label: 'Crossword Clash', domain: 'crosswordclash.com', hasApiRoutes: true, agents: true, appStore: true, googlePlay: true },
-  { value: 'ticket-for-dinner', label: 'Delivery Picker', domain: 'ticketfordinner.com', hasApiRoutes: true },
-  { value: 'superbowl-squares', label: 'Superbowl Squares', domain: 'superbowl-squares.com' },
-  { value: 'tabbit-rabbit', label: 'Tabbit Rabbit', domain: 'tabbitrabbit.com', hasApiRoutes: true },
-  { value: 'mark-my-words', label: 'Mark My Words', domain: 'archer.biz', hasApiRoutes: true, agents: true },
-  { value: 'mtg-dash', label: 'MTG Dash', domain: 'mtg.capxun.com', cloudflare: true },
-  { value: 'recipe-guide', label: 'Recipe Guide', domain: 'mised.tech', hasApiRoutes: true },
-  { value: 'fable-designer', label: 'Fable Designer', domain: 'fabledesigner.com', appStore: true, amazonAppstore: true },
 ];
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
@@ -53,12 +40,6 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function formatCost(usd: number): string {
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  if (usd < 1) return `$${usd.toFixed(3)}`;
-  return `$${usd.toFixed(2)}`;
-}
-
 function App() {
   const [range, setRange] = useState<DateRange>(() => new URLSearchParams(window.location.search).get('view') === 'businesses' ? '7d' : '1d');
   const [project, setProject] = useState<string>(() => new URLSearchParams(window.location.search).get('view') === 'businesses' ? BUSINESSES_VIEW : HOME_VIEW);
@@ -71,7 +52,6 @@ function App() {
   const isPortfolioView = project === PORTFOLIO_VIEW;
   const isHomeView = project === HOME_VIEW;
   const isBusinessesView = project === BUSINESSES_VIEW;
-  const isProjectView = !isElevenLabsView && !isPortfolioView && !isHomeView && !isBusinessesView;
 
   const projectLabels: Record<string, string> = Object.fromEntries(
     PROJECTS.map((p) => [p.value, p.label]),
@@ -119,7 +99,7 @@ function App() {
         </div>
       </header>
 
-      {error && (isProjectView || isHomeView) && <div className="error-banner">{error}</div>}
+      {error && !isBusinessesView && <div className="error-banner">{error}</div>}
 
       {isBusinessesView ? <Businesses range={range} refresh={businessRefresh} /> : isHomeView ? (
         overview ? (
@@ -142,6 +122,7 @@ function App() {
       ) : isPortfolioView ? (
         <section className="section">
           <h2>Portfolio Summary</h2>
+          <CostCoverage scope={portfolio?.costScope} unpricedRequests={portfolio?.projects.reduce((s, p) => s + (p.unpricedRequests ?? 0), 0)} />
           {portfolio && portfolio.projects.length > 0 ? (
             <>
               <div className="metrics-row">
@@ -150,8 +131,8 @@ function App() {
                   value={portfolio.projects.reduce((s, p) => s + p.requests, 0)}
                 />
                 <MetricCard
-                  label="Estimated Cost"
-                  value={formatCost(portfolio.projects.reduce((s, p) => s + p.estimatedCost, 0))}
+                  label="Priced Usage Estimate"
+                  value={formatEstimatedCost(portfolio.projects.reduce((s, p) => s + p.estimatedCost, 0), portfolio.projects.reduce((s, p) => s + p.requests, 0), portfolio.projects.reduce((s, p) => s + (p.unpricedRequests ?? 0), 0))}
                 />
                 <MetricCard
                   label="Projects with Usage"
@@ -169,7 +150,7 @@ function App() {
                         <th>Requests</th>
                         <th>Tokens</th>
                         <th>Characters</th>
-                        <th>Est. Cost</th>
+                        <th>Priced Estimate</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -179,7 +160,7 @@ function App() {
                           <td>{p.requests.toLocaleString()}</td>
                           <td>{(p.tokensIn + p.tokensOut).toLocaleString()}</td>
                           <td>{p.characters > 0 ? p.characters.toLocaleString() : '—'}</td>
-                          <td className="page-path">{formatCost(p.estimatedCost)}</td>
+                          <td className="page-path">{formatEstimatedCost(p.estimatedCost, p.requests, p.unpricedRequests)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -189,7 +170,7 @@ function App() {
             </>
           ) : (
             <div className="loading">
-              {loading ? 'Loading...' : 'No API usage data yet across projects.'}
+              {loading ? 'Loading...' : !portfolio ? 'Portfolio data unavailable.' : 'No logged API usage in this period. This does not establish zero provider usage.'}
             </div>
           )}
         </section>
@@ -243,6 +224,7 @@ function App() {
         <>
           <section className="section">
             <h2>Traffic</h2>
+            {traffic?.note && <p className="section-note">{traffic.note}</p>}
             {traffic && (
               <>
                 <div className="metrics-row">
@@ -314,6 +296,7 @@ function App() {
 
           <section className="section">
             <h2>API Usage</h2>
+            <CostCoverage scope={apiUsage?.costScope} unpricedRequests={apiUsage?.unpricedRequests} unpricedUsage={apiUsage?.unpricedUsage} />
             {apiUsage && apiUsage.totals.length > 0 ? (
               <>
                 <div className="metrics-row">
@@ -322,17 +305,14 @@ function App() {
                       key={t.service}
                       label={t.service.charAt(0).toUpperCase() + t.service.slice(1)}
                       value={t.requests}
-                      subtitle={t.service === 'anthropic'
+                      subtitle={(t.service === 'anthropic' || t.service === 'openai')
                         ? `${Number(t.tokens_in).toLocaleString()} in / ${Number(t.tokens_out).toLocaleString()} out`
                         : `${Number(t.characters).toLocaleString()} chars`}
                     />
                   ))}
                   <MetricCard
-                    label="Est. Cost"
-                    value={formatCost(apiUsage.totalCost)}
-                    subtitle={apiUsage.totals.reduce((s, t) => s + t.requests, 0) > 0
-                      ? `${formatCost(apiUsage.totalCost / apiUsage.totals.reduce((s, t) => s + t.requests, 0))}/req`
-                      : ''}
+                    label="Priced Usage Estimate"
+                    value={formatEstimatedCost(apiUsage.totalCost, apiUsage.totals.reduce((s, t) => s + t.requests, 0), apiUsage.unpricedRequests)}
                   />
                 </div>
                 {apiUsage.recentCalls.length > 0 && (
@@ -355,7 +335,7 @@ function App() {
                               <td>{call.service}</td>
                               <td className="page-path">{call.endpoint}</td>
                               <td>
-                                {call.service === 'anthropic'
+                                {(call.service === 'anthropic' || call.service === 'openai')
                                   ? `${call.tokens_in + call.tokens_out} tokens`
                                   : `${call.characters} chars`}
                               </td>
@@ -369,9 +349,7 @@ function App() {
               </>
             ) : (
               <div className="loading">
-                {loading ? 'Loading...' : currentProject?.hasApiRoutes
-                  ? `No API usage data yet for ${currentProject.label}.`
-                  : `${currentProject?.label ?? 'This project'} uses client-side APIs only — no server-side usage to track.`}
+                {loading ? 'Loading...' : !apiUsage ? 'API usage unavailable for this selection.' : `No logged API usage for ${currentProject?.label ?? 'this project'} in this period. Unlogged provider activity is not included.`}
               </div>
             )}
           </section>

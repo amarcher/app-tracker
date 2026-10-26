@@ -1,20 +1,9 @@
 import { GoogleAuth } from 'google-auth-library';
+import { PROJECTS } from '../../src/config/projects.js';
 
 const env = (name: string) => (process.env[name] ?? '').trim();
 
-export const PROJECT_DOMAINS: Record<string, string> = {
-  'animal-penpals': 'animalpenpals.tech',
-  'space-explorer': 'spaceexplorer.tech',
-  'space-race': 'game.spaceexplorer.tech',
-  'periodic-table': 'periodictable.tech',
-  'crossword-clash': 'crosswordclash.com',
-  'ticket-for-dinner': 'ticketfordinner.com',
-  'superbowl-squares': 'superbowl-squares.com',
-  'tabbit-rabbit': 'tabbitrabbit.com',
-  'mark-my-words': 'archer.biz',
-  'mtg-dash': 'mtg.capxun.com',
-  'recipe-guide': 'mised.tech',
-};
+export const PROJECT_DOMAINS: Record<string, string> = Object.fromEntries(PROJECTS.map(p => [p.value, p.domain]));
 
 const SITE_URL_ENV: Record<string, string> = {
   'animal-penpals': env('GSC_SITE_URL_ANIMAL_PENPALS'),
@@ -28,6 +17,7 @@ const SITE_URL_ENV: Record<string, string> = {
   'mark-my-words': env('GSC_SITE_URL_MARK_MY_WORDS'),
   'mtg-dash': env('GSC_SITE_URL_MTG_DASH'),
   'recipe-guide': env('GSC_SITE_URL_RECIPE_GUIDE'),
+  'fable-designer': env('GSC_SITE_URL_FABLE_DESIGNER'),
 };
 
 export interface SearchConsoleSiteEntry {
@@ -117,11 +107,6 @@ function baseDomain(domain: string): string {
   return domain.replace(/^www\./, '').toLowerCase();
 }
 
-function parentDomain(domain: string): string {
-  const parts = baseDomain(domain).split('.');
-  return parts.length > 2 ? parts.slice(-2).join('.') : parts.join('.');
-}
-
 export function findSiteForProject(
   project: string,
   sites: SearchConsoleSiteEntry[],
@@ -135,15 +120,15 @@ export function findSiteForProject(
   if (!domain) return null;
 
   const normalized = baseDomain(domain);
-  const parent = parentDomain(domain);
   const exactDomainProperty = sites.find((s) => s.siteUrl === `sc-domain:${normalized}`);
   if (exactDomainProperty) return exactDomainProperty;
 
-  const parentDomainProperty = sites.find((s) => s.siteUrl === `sc-domain:${parent}`);
-  if (parentDomainProperty) return parentDomainProperty;
+  const urlProperty = sites.find((s) => !s.siteUrl.startsWith('sc-domain:') && hostFromSiteUrl(s.siteUrl) === normalized);
+  if (urlProperty) return urlProperty;
 
-  const urlProperty = sites.find((s) => hostFromSiteUrl(s.siteUrl) === normalized);
-  return urlProperty ?? null;
+  // Only accessible domain properties that actually contain this hostname.
+  return sites.filter(s => s.siteUrl.startsWith('sc-domain:') && normalized.endsWith(`.${s.siteUrl.slice(10)}`))
+    .sort((a, b) => b.siteUrl.length - a.siteUrl.length)[0] ?? null;
 }
 
 export function dateRangeForSearchConsole(days: number): { startDate: string; endDate: string } {
@@ -157,4 +142,15 @@ export function dateRangeForSearchConsole(days: number): { startDate: string; en
     startDate: start.toISOString().slice(0, 10),
     endDate: end.toISOString().slice(0, 10),
   };
+}
+
+/** Apply the same hostname scope to totals, breakdowns and coverage surveys. */
+export async function queryProjectSearchAnalytics(project: string, siteUrl: string, body: Record<string, unknown>): Promise<SearchAnalyticsRow[]> {
+  const domain = PROJECT_DOMAINS[project];
+  if (!domain) throw new Error('No Search Console domain configured for project');
+  const escapedHost = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return querySearchAnalytics(siteUrl, {
+    ...body,
+    dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'includingRegex', expression: `^https?://(www\\.)?${escapedHost}/` }] }],
+  });
 }

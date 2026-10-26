@@ -7,12 +7,12 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 ## What It Does
 
 - **Traffic** — Pageviews, sessions, users, top pages, and traffic sources per project via Google Analytics 4 Data API
-- **API Usage** — Per-project Anthropic token consumption and ElevenLabs character usage, self-instrumented via Neon Postgres
+- **API Usage** — Per-project Anthropic and OpenAI token consumption and ElevenLabs character usage, self-instrumented via Neon Postgres
 - **ElevenLabs Account** — Account-wide character quota, product breakdown, and daily usage trends
 - **App stores** — iOS downloads, active devices, rating and reviews via App Store Connect; Amazon Appstore downloads via the Appstore Reporting API, with installs and DAU/WAU/MAU ingested from Download Center CSVs; Google Play installs and active devices from the Play Console statistics export in Cloud Storage
 - **Our businesses** — private Fable book creation, paid finishes, printed copies, cash revenue, and separate Apple/Amazon download reports for Fable Reader and Space Race
 
-## Monitored Projects
+## Monitored Projects (12)
 
 | Project | Domain | API Instrumentation |
 |---|---|---|
@@ -25,7 +25,17 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 | Tabbit Rabbit | tabbitrabbit.com | Anthropic |
 | Mark My Words | archer.biz | Anthropic + ElevenLabs TTS |
 | Space Race | game.spaceexplorer.tech | App Store Connect + Amazon Appstore + Google Play |
+| MTG Dash | mtg.capxun.com | — |
+| Recipe Guide | mised.tech | Self-instrumented API usage |
 | Fable Designer / Fable Reader | fabledesigner.com | Fable aggregate feed + App Store Connect + Amazon Appstore |
+
+## Reliability and coverage
+
+- Home and project traffic totals use GA4 aggregate reports so users are deduplicated over the selected window. Daily/hourly chart users must not be summed to obtain unique users. Portfolio users still sum separate properties and are not deduplicated across projects.
+- The 24-hour view covers the last 24 completed hourly buckets in the configured property timezone, with the same filter on totals, pages and sources. Repeated DST hours cannot be separated by GA4's `dateHour` dimension. Other ranges include today; the UI warns that today and recent processing are incomplete. Timezones currently default to America/New_York; verify per-property overrides in `api/_shared/timezone.ts` if configuration changes.
+- Missing or failed GA sources stay visible in Home coverage warnings. Failed prior periods and zero baselines have no percentage change. Unconfigured project detail never borrows another project's property.
+- Search Console uses the same 12-project catalog as the selector. Queries, totals, pages, timeseries and the coverage survey restrict results to the project hostname and its www alias, even when access comes from a parent domain property. This excludes sibling subdomains, including Space Race from Space Explorer. Page filtering uses Search Console's page aggregation; totals can differ from unfiltered property-level counts. API access and property permissions still need separate configuration; adding a map entry does not grant access.
+- API costs cover only self-instrumented `api_usage` rows, using one standard text-token price table for both routes. Unknown models/services and plan-dependent ElevenLabs records are explicitly unpriced. This is not an invoice or complete business spend: unlogged activity, cache/batch adjustments, tools, media, subscriptions and tax are excluded. Rates are documented in `api/_shared/usage-pricing.ts`, checked against [OpenAI model pricing](https://developers.openai.com/api/docs/pricing) and [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) on 2026-10-26. No prefix guessing is used for unknown model versions.
 
 ## Architecture
 
@@ -43,7 +53,7 @@ See `scripts/add-project.sh` or the SEO & Observability skill for the full check
 3. Add the GA4 property ID as a Vercel env var
 4. Add gtag.js to the project's index.html
 5. Instrument any server-side API routes with the `logUsage` pattern
-6. Add the project to `PROJECTS` in `src/App.tsx` and `PROPERTIES` in `api/ga-traffic.ts`
+6. Add the project to `PROJECTS` in `src/config/projects.ts` and `GA4_PROPERTIES` in `api/_shared/ga4.ts` (Search Console domains derive from `PROJECTS`)
 
 ## Setup
 

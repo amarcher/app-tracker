@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { GaTrafficResponse, ElevenLabsResponse, ApiUsageResponse, CdnResponse, PortfolioResponse, TrafficOverviewResponse, AgentStatsResponse, PosthogResponse, SearchConsoleResponse, SearchConsoleSitesResponse, AppStoreResponse, AmazonAppstoreResponse, GooglePlayResponse, DateRange } from '../types';
 
 const ELEVENLABS_VIEW = '__elevenlabs__';
@@ -22,7 +22,31 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const activeRequest = useRef<AbortController | null>(null);
   const fetchData = useCallback(async () => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const request = (url: string) => fetch(url, { signal: controller.signal });
+    const readJson = async (response: Response) => {
+      const data = await response.json();
+      if (controller.signal.aborted) throw new Error('Request superseded');
+      return data;
+    };
+    // A new selection must never display another project's cached response.
+    setTraffic(null);
+    setApiUsage(null);
+    setOverview(null);
+    setPortfolio(null);
+    setElevenlabs(null);
+    setCloudflare(null);
+    setAgentStats(null);
+    setPosthog(null);
+    setSearchConsole(null);
+    setSearchConsoleSites(null);
+    setAppStore(null);
+    setAmazonAppstore(null);
+    setGooglePlay(null);
     if (project === '__businesses__') { setLoading(false); return; }
     setLoading(true);
     setError(null);
@@ -33,9 +57,9 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
 
     try {
       if (isHome) {
-        const res = await fetch(`/api/traffic-overview?range=${range}`);
+        const res = await request(`/api/traffic-overview?range=${range}`);
         if (!res.ok) throw new Error('Failed to fetch traffic overview');
-        setOverview(await res.json());
+        setOverview(await readJson(res));
         setTraffic(null);
         setElevenlabs(null);
         setApiUsage(null);
@@ -44,12 +68,12 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setAgentStats(null);
         setPosthog(null);
         setSearchConsole(null);
-        const surveyRes = await fetch(`/api/search-console-sites?range=${range}`);
-        setSearchConsoleSites(surveyRes.ok ? await surveyRes.json() : null);
+        const surveyRes = await request(`/api/search-console-sites?range=${range}`);
+        setSearchConsoleSites(surveyRes.ok ? await readJson(surveyRes) : null);
       } else if (isElevenLabs) {
-        const elevenRes = await fetch(`/api/elevenlabs-usage?range=${range}`);
+        const elevenRes = await request(`/api/elevenlabs-usage?range=${range}`);
         if (!elevenRes.ok) throw new Error('Failed to fetch ElevenLabs data');
-        setElevenlabs(await elevenRes.json());
+        setElevenlabs(await readJson(elevenRes));
         setTraffic(null);
         setApiUsage(null);
         setCloudflare(null);
@@ -60,9 +84,9 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setSearchConsole(null);
         setSearchConsoleSites(null);
       } else if (isPortfolio) {
-        const portfolioRes = await fetch(`/api/portfolio-summary?range=${range}`);
+        const portfolioRes = await request(`/api/portfolio-summary?range=${range}`);
         if (!portfolioRes.ok) throw new Error('Failed to fetch portfolio data');
-        setPortfolio(await portfolioRes.json());
+        setPortfolio(await readJson(portfolioRes));
         setTraffic(null);
         setElevenlabs(null);
         setApiUsage(null);
@@ -74,101 +98,104 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
         setSearchConsoleSites(null);
       } else {
         const fetches: Promise<Response>[] = [
-          fetch(`/api/ga-traffic?range=${range}&project=${project}`),
-          fetch(`/api/api-usage?range=${range}&project=${project}`),
-          fetch(`/api/search-console?range=${range}&project=${project}`),
+          request(`/api/ga-traffic?range=${range}&project=${project}`),
+          request(`/api/api-usage?range=${range}&project=${project}`),
+          request(`/api/search-console?range=${range}&project=${project}`),
         ];
         const searchConsoleIndex = 2;
         const cfIndex = hasCloudflare ? fetches.length : -1;
         if (hasCloudflare) {
-          fetches.push(fetch(`/api/cloudflare-cdn?range=${range}&project=${project}`));
+          fetches.push(request(`/api/cloudflare-cdn?range=${range}&project=${project}`));
         }
         const agentsIndex = hasAgents ? fetches.length : -1;
         if (hasAgents) {
-          fetches.push(fetch(`/api/elevenlabs-agent-stats?range=${range}&project=${project}`));
+          fetches.push(request(`/api/elevenlabs-agent-stats?range=${range}&project=${project}`));
         }
         const posthogIndex = hasPosthog ? fetches.length : -1;
         if (hasPosthog) {
-          fetches.push(fetch(`/api/posthog-events?range=${range}&project=${project}`));
+          fetches.push(request(`/api/posthog-events?range=${range}&project=${project}`));
         }
         const appStoreIndex = hasAppStore ? fetches.length : -1;
         if (hasAppStore) {
-          fetches.push(fetch(`/api/app-store?range=${range}&project=${project}`));
+          fetches.push(request(`/api/app-store?range=${range}&project=${project}`));
         }
         const amazonIndex = hasAmazonAppstore ? fetches.length : -1;
         if (hasAmazonAppstore) {
-          fetches.push(fetch(`/api/amazon-appstore?range=${range}&project=${project}`));
+          fetches.push(request(`/api/amazon-appstore?range=${range}&project=${project}`));
         }
         const googlePlayIndex = hasGooglePlay ? fetches.length : -1;
         if (hasGooglePlay) {
-          fetches.push(fetch(`/api/google-play?range=${range}&project=${project}`));
+          fetches.push(request(`/api/google-play?range=${range}&project=${project}`));
         }
 
         const results = await Promise.all(fetches);
         const [trafficRes, apiUsageRes] = results;
 
         if (!trafficRes.ok) throw new Error('Failed to fetch traffic data');
-        setTraffic(await trafficRes.json());
+        setTraffic(await readJson(trafficRes));
         setElevenlabs(null);
         setPortfolio(null);
         setOverview(null);
         setSearchConsoleSites(null);
 
         if (apiUsageRes.ok) {
-          setApiUsage(await apiUsageRes.json());
+          setApiUsage(await readJson(apiUsageRes));
+        } else {
+          setError('API usage unavailable for this selection');
         }
 
         if (results[searchConsoleIndex]?.ok) {
-          setSearchConsole(await results[searchConsoleIndex].json());
+          setSearchConsole(await readJson(results[searchConsoleIndex]));
         } else {
           setSearchConsole(null);
         }
 
         if (cfIndex >= 0 && results[cfIndex]?.ok) {
-          setCloudflare(await results[cfIndex].json());
+          setCloudflare(await readJson(results[cfIndex]));
         } else {
           setCloudflare(null);
         }
 
         if (agentsIndex >= 0 && results[agentsIndex]?.ok) {
-          setAgentStats(await results[agentsIndex].json());
+          setAgentStats(await readJson(results[agentsIndex]));
         } else {
           setAgentStats(null);
         }
 
         if (posthogIndex >= 0 && results[posthogIndex]?.ok) {
-          setPosthog(await results[posthogIndex].json());
+          setPosthog(await readJson(results[posthogIndex]));
         } else {
           setPosthog(null);
         }
 
         if (appStoreIndex >= 0 && results[appStoreIndex]?.ok) {
-          setAppStore(await results[appStoreIndex].json());
+          setAppStore(await readJson(results[appStoreIndex]));
         } else {
           setAppStore(null);
         }
 
         if (amazonIndex >= 0 && results[amazonIndex]?.ok) {
-          setAmazonAppstore(await results[amazonIndex].json());
+          setAmazonAppstore(await readJson(results[amazonIndex]));
         } else {
           setAmazonAppstore(null);
         }
 
         if (googlePlayIndex >= 0 && results[googlePlayIndex]?.ok) {
-          setGooglePlay(await results[googlePlayIndex].json());
+          setGooglePlay(await readJson(results[googlePlayIndex]));
         } else {
           setGooglePlay(null);
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [range, project, hasCloudflare, hasAgents, hasPosthog, hasAppStore, hasAmazonAppstore, hasGooglePlay]);
 
   useEffect(() => {
     fetchData();
+    return () => activeRequest.current?.abort();
   }, [fetchData]);
 
   return { traffic, elevenlabs, apiUsage, cloudflare, portfolio, overview, agentStats, posthog, searchConsole, searchConsoleSites, appStore, amazonAppstore, googlePlay, loading, error, refetch: fetchData };
