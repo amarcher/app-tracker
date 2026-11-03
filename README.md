@@ -44,6 +44,16 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 - **Database**: Neon Postgres stores self-instrumented API usage logs from monitored projects
 - **Deployment**: Vercel
 
+## Real traffic only
+
+The dashboard leaves out the owner's own visits and robots for every app. The list lives in one place, `api/_shared/real-traffic.ts`: the owner's home IPs and GA4 city, small data-centre towns, and headless-browser screen sizes. GA4 reports are filtered by place and screen (GA4 hides IPs); PostHog by IP and place. Store, Cloudflare and API-cost numbers are aggregates and cannot be filtered.
+
+Owner setup that makes GA4 itself drop internal traffic from now on (the query-time filter keeps working either way):
+
+1. In each GA4 property (one per app): Admin → Data streams → the web stream → Configure tag settings → Show more → **Define internal traffic** → Create: rule name `Owner home`, `traffic_type` value `internal`, IP address **equals** `72.74.126.56` (add the home IPv6 prefix too if the network has one).
+2. Admin → Data collection and modification → **Data filters** → the built-in "Internal Traffic" filter → set it to **Testing**, check a day of reports with the "Test data filter name" dimension, then switch it to **Active**. Active filters are permanent: excluded data cannot be recovered.
+3. When the home IP changes, update the rule and `OWNER_IPS` together.
+
 ## Adding a New Project
 
 See `scripts/add-project.sh` or the SEO & Observability skill for the full checklist. In short:

@@ -40,6 +40,16 @@ Unified observability dashboard monitoring traffic and API usage across 8+ web a
 
 7. **Google Play** — Android install stats for projects with `googlePlay: true` (currently Space Race), and a `google` store in the private Businesses view for every `STORE_APPS` entry with a `googlePrefix` (Fable Reader, Space Race and Crossword Clash; an app with no `asin` in `STORE_APPS` is not sold on Amazon and gets no Amazon store). Play has no query API for installs: Play Console exports statistics as UTF-16 CSVs into a Cloud Storage bucket, and `api/_shared/google-play.ts` (`loadGooglePlay(project, range)`) reads `stats/installs/installs_<package>_<YYYYMM>_country.csv` through the GCS JSON API with `<googlePrefix>_KEY_JSON` / `<googlePrefix>_REPORT_BUCKET`, summing per day across countries; days Google has not published yet stay missing rather than zero, and exports arrive 3–7 days late. Space Race and Fable Reader publish from the same Fable Designer Play org account, so Space Race uses `googlePrefix: 'FABLE_PLAY'` and shares that bucket and service account. `api/google-play.ts` wraps the same loader for the public project view. There is no DAU: the Play build ships without analytics because the app is declared child-directed.
 
+### Real traffic only
+
+Every per-visitor query leaves out the owner and robots, from one list in `api/_shared/real-traffic.ts` (tested by `api/__tests__/real-traffic.test.ts`). Add a person, town or screen there, never in a route.
+
+- **GA4** (`ga-traffic.ts`, `traffic-overview.ts` via `_shared/traffic.ts`'s `fetchTrafficTotals`): every `runReport` spreads `withRealTraffic(window)`, which ANDs any filter the window already carries (the 24 h view's hour list) with `ga4RealTrafficFilter()`. That filter drops the owner's GA4 city (`OWNER_PLACES`: Lexington, Massachusetts — always city *and* region, since Lexington, Kentucky is a real city), small data-centre towns (`DATA_CENTRE_PLACES`), headless-browser screens on a Direct session (`HEADLESS_SCREENS`: 800x600, 1280x720 — people on 150%-scaled laptops report 1280x720 too, but arrive from search) and screens no device has on any channel (`ROBOT_SCREENS`: exact squares, 1280x1200). Big cities that host cloud regions (Phoenix, San Jose, Chicago, San Antonio, Des Moines) stay in: real people visit from them and their robots match the screen rules. GA4 never exposes IPs.
+- **PostHog** (`posthog-events.ts`): `posthogRealTrafficFilter()` is a HogQL property filter on `OWNER_IPS` and the same towns. PostHog's GeoIP disagrees with GA4's (it puts the owner's home IP in Braintree, MA), so the owner is matched by IP there.
+- **Not filterable**: store reports, Cloudflare and the `api_usage` cost ledger are aggregates with no per-visitor field. Costs stay as billed.
+
+Measured over the 30 days to 2026-11-01: all GA4 apps 2,552 → 1,781 users; Crossword Clash 563 → 156, Periodic Table 261 → 84, Fable Designer 35 → 6.
+
 ### API Routes (`api/`)
 
 - `ga-traffic.ts` — Queries GA4 Data API. Accepts `?project=` to select the GA4 property. Property IDs are mapped from env vars in the `PROPERTIES` object. Returns engagement metrics (engagement rate, avg session duration, bounce rate, new vs returning users) alongside traffic.
