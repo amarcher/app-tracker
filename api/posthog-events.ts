@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+import { posthogRealTrafficFilter } from './_shared/real-traffic.js';
+
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY?.trim();
 const POSTHOG_HOST = 'https://us.posthog.com';
 
@@ -124,9 +126,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Events sent before the app tag existed (2026-09-28) have no `app`; the
     // keys were broken before then, so there is effectively nothing to lose.
-    const appFilter = config.app
-      ? { properties: [{ type: 'event', key: 'app', operator: 'exact', value: [config.app] }] }
-      : {};
+    // Every query also leaves out the owner and data-centre robots.
+    const appFilter = {
+      properties: [
+        ...(config.app ? [{ type: 'event', key: 'app', operator: 'exact', value: [config.app] }] : []),
+        posthogRealTrafficFilter(),
+      ],
+    };
     const eventNames = Object.keys(config.events);
     const eventLabels = config.events;
     const dateFrom = rangeToDateFrom(range);

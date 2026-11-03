@@ -1,5 +1,6 @@
 import type { BetaAnalyticsDataClient } from '@google-analytics/data';
 import { tzForProject } from './timezone.js';
+import { withRealTraffic } from './real-traffic.js';
 
 const HOUR = 3_600_000;
 function dateHour(epoch: number, timezone: string): string {
@@ -31,7 +32,7 @@ export function trafficWindow(days: number, project: string, previous = false, n
 export const TRAFFIC_METRICS = ['screenPageViews', 'sessions', 'totalUsers', 'newUsers', 'engagementRate', 'averageSessionDuration', 'bounceRate'].map(name => ({ name }));
 
 export async function fetchTrafficTotals(client: BetaAnalyticsDataClient, propertyId: string, window: ReturnType<typeof trafficWindow>) {
-  const [response] = await client.runReport({ property: `properties/${propertyId}`, ...window, metrics: TRAFFIC_METRICS });
+  const [response] = await client.runReport({ property: `properties/${propertyId}`, ...withRealTraffic(window), metrics: TRAFFIC_METRICS });
   const row = response.rows?.[0];
   const value = (i: number) => Number(row?.metricValues?.[i]?.value ?? 0);
   return { pageviews: value(0), sessions: value(1), users: value(2), newUsers: value(3), engagementRate: value(4), avgSessionDuration: value(5), bounceRate: value(6) };

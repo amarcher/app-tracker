@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchTrafficTotals, trafficWindow, trafficNote } from './_shared/traffic.js';
+import { withRealTraffic } from './_shared/real-traffic.js';
 import {
   GA4_PROPERTIES as PROPERTIES,
   getGa4Client as getClient,
@@ -23,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [timeseriesResponse, topPagesResponse, sourcesResponse, totals] = await Promise.all([
       client.runReport({
         property: `properties/${propertyId}`,
-        ...window,
+        ...withRealTraffic(window),
         dimensions: [{ name: isRolling24h ? 'dateHour' : 'date' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -39,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
       client.runReport({
         property: `properties/${propertyId}`,
-        ...window,
+        ...withRealTraffic(window),
         dimensions: [{ name: 'pagePath' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -50,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
       client.runReport({
         property: `properties/${propertyId}`,
-        ...window,
+        ...withRealTraffic(window),
         dimensions: [
           { name: 'sessionSource' },
           { name: 'sessionMedium' },
