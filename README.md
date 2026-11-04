@@ -10,7 +10,7 @@ Unified observability dashboard for monitoring traffic, API usage, and costs acr
 - **API Usage** — Per-project Anthropic and OpenAI token consumption and ElevenLabs character usage, self-instrumented via Neon Postgres
 - **ElevenLabs Account** — Account-wide character quota, product breakdown, and daily usage trends
 - **App stores** — iOS downloads, active devices, rating and reviews via App Store Connect; Amazon Appstore downloads via the Appstore Reporting API, with installs and DAU/WAU/MAU ingested from Download Center CSVs; Google Play installs and active devices from the Play Console statistics export in Cloud Storage
-- **Our businesses** — private Fable book creation, paid finishes, printed copies, cash revenue, and separate Apple/Amazon download reports for Fable Reader and Space Race
+- **Our businesses** — private Fable book creation, paid finishes, printed copies, cash revenue, separate Apple/Amazon download reports for Fable Reader and Space Race, and Crossword Clash Plus subscribers (by store and plan, cancelling, new this week and month, an MRR estimate)
 
 ## Monitored Projects (12)
 
@@ -145,6 +145,28 @@ install and engagement CSVs may lag by 72/96 hours and remain a separate source.
 Validation: `npm run build`, `npm run lint`, and `npm test`. The tests cover exact
 app attribution, report gaps, nullable values, importer filtering, auth boundaries,
 signed handoffs, and bounded report concurrency.
+
+### Crossword Clash Plus
+
+The private Businesses view and the household feed carry the Plus subscription figures,
+read live at collection time from the app's own Supabase project (`rdqdhawlxuclfxpsvdgs`)
+with `CROSSWORD_CLASH_SUPABASE_SERVICE_KEY`, the project's service_role key. Both tables
+(`entitlements`, `purchase_events`) are RLS-locked with no client policies, so nothing
+weaker can read them; the key belongs in Vercel's production environment only. PostgREST
+projects just the plan-naming fields out of each event payload (product id, store,
+environment; Stripe's price lookup key, interval and livemode), so no webhook body leaves
+the database.
+
+In force means active or in a billing-retry grace period and not past expiry. Each
+subscriber's plan and store come from their latest event that names one, by the same rule
+as the app's purchase alert (`planName()` in crossword-clash's `src/lib/purchaseAlert.ts`).
+A subscriber whose latest such event is RevenueCat sandbox or Stripe test mode is counted
+under "test", apart from everything else: App Review and testers buy in production
+today. New subscribers are first purchases only (RevenueCat `INITIAL_PURCHASE`, Stripe
+`customer.subscription.created`), never renewals or restores. The MRR estimate is
+$3.99 × monthly + $24.99 ÷ 12 × annual, before Apple, Google and Stripe take their share;
+hand-granted rows are entitled and never revenue. A missing key or a refused read leaves
+the block "awaiting connection" and costs the household snapshot nothing else.
 
 ### Fable Reader on Google Play
 

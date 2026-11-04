@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { BusinessSummary, BusinessTotals } from '../types/business';
+import type { BusinessSummary, BusinessTotals, PlusSummary } from '../types/business';
 import type { DateRange } from '../types';
 import { MetricCard } from './MetricCard';
 
@@ -64,6 +64,32 @@ function SocialReels({ social, range }: { social: NonNullable<BusinessSummary['s
 }
 
 const cash = (value: number | null) => value === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100);
+
+const PLUS_STORES = [['appStore', 'App Store'], ['googlePlay', 'Google Play'], ['web', 'Web (Stripe)'], ['other', 'Other']] as const;
+const PLUS_PLANS = [['monthly', 'monthly'], ['annual', 'annual'], ['unknown', 'plan unknown']] as const;
+const listed = <K extends string>(pairs: readonly (readonly [K, string])[], counts: Record<K, number>, every = false) =>
+  pairs.filter(([key]) => every || counts[key] > 0).map(([key, label]) => `${counts[key].toLocaleString()} ${label}`).join(' · ') || 'none yet';
+
+/** Live subscription figures from the app's own database: who is paying now, not a store report that lags. */
+function CrosswordPlus({ plus }: { plus: PlusSummary }) {
+  const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+  return <section className="section">
+    <div className="business-heading"><h2>Crossword Clash Plus</h2><a href="https://crosswordclash.com/account">Open the site</a></div>
+    {plus.available ? <>
+      <div className="metrics-row">
+        <MetricCard label="Subscribers" value={plus.active} subtitle={listed(PLUS_STORES, plus.byStore)} />
+        <MetricCard label="Monthly revenue (est.)" value={cash(plus.mrrCents)} subtitle={listed(PLUS_PLANS, plus.byPlan)} />
+        <MetricCard label="New in the last 30 days" value={plus.newLast30Days} subtitle={`${plus.newLast7Days.toLocaleString()} in the last 7 days`} />
+        <MetricCard label="Cancelling" value={plus.cancelling} subtitle="Still in force; lapse at expiry" />
+      </div>
+      <div className="business-secondary">
+        <span>{plural(plus.grants, 'complimentary grant')}</span>
+        <span>{plural(plus.test.active, 'sandbox or test-mode subscription')} ({plus.test.newLast30Days.toLocaleString()} new in 30 days), not counted</span>
+      </div>
+      <p className="business-freshness">In force means active or in a billing-retry grace period and not past expiry. Revenue is $3.99 × monthly + $24.99 ÷ 12 × annual, before Apple, Google and Stripe take their share; the plan comes from each subscriber’s latest purchase event. New subscribers are first purchases only, never renewals or restores.</p>
+    </> : <p>{plus.reason}</p>}
+  </section>;
+}
 export function Businesses({ range, refresh }: { range: DateRange; refresh: number }) {
   const [data, setData] = useState<BusinessSummary | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'signin' | 'error'>('loading');
@@ -106,6 +132,7 @@ export function Businesses({ range, refresh }: { range: DateRange; refresh: numb
         <details className="business-definitions"><summary>What these figures count</summary>{Object.values(fable.definitions).map(text => <p key={text}>{text}</p>)}{fable.caveats.map((text, index) => <p key={index}>{text}</p>)}</details>
       </> : <p>{data.fableReason}</p>}
     </section>
+    {data.plus ? <CrosswordPlus plus={data.plus} /> : null}
     {data.apps.map(app => <section className="section" key={app.project}><h2>{app.name}</h2><div className="business-stores">{app.stores.map(store => <div className="business-store" key={store.store}>
       <h3>{STORE_LABELS[store.store]}</h3>
       <div className="business-downloads">{store.downloads === null ? '—' : store.downloads.toLocaleString()}<span>{store.store === 'google' ? 'user installs' : 'new downloads'}</span></div>

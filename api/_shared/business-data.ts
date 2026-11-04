@@ -4,6 +4,7 @@ import { loadAmazonAppstore } from '../amazon-appstore.js';
 import { loadGooglePlay } from './google-play.js';
 import { STORE_APPS, appStores, storeSource, trustedLegacyStore } from './store-apps.js';
 import { loadSocialReels, SOCIAL_ACCOUNTS } from './social-reels.js';
+import { loadCrosswordPlus } from './crossword-plus.js';
 import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, SocialPlatformSummary, StoreDay, StoreName } from '../../src/types/business.js';
 
 const DAY = 86400_000;
@@ -166,6 +167,8 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
       result.fable = { generatedAt: data.generatedAt, totals: summarizeBusinessDays(current), previous: summarizeBusinessDays(previous), timeseries: current, definitions: data.definitions, caveats: data.caveats };
     } catch { result.fableReason = 'Fable business figures are unavailable. Check the connection in Fable admin.'; }
   })();
+  // Read alongside the stores; the loader answers `available: false` rather than throwing, so a Supabase outage costs this block only.
+  const plusRequest = loadCrosswordPlus(Date.parse(result.generatedAt));
   result.apps = await Promise.all(Object.entries(STORE_APPS).map(async ([project, app]) => {
     const names: StoreName[] = appStores(project);
     const reports = await Promise.allSettled(names.map(store => store === 'apple' ? loadAppStore(project, `${days}d`)
@@ -188,6 +191,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
     return { project, name: account.name, platforms };
   }));
   await fableRequest;
+  result.plus = await plusRequest;
   if (archive && process.env.DATABASE_URL) {
     const db = neon(process.env.DATABASE_URL);
     // A failed Fable source cannot erase its last successful household snapshot.

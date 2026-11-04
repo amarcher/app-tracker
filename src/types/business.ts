@@ -33,6 +33,29 @@ export type ReelStat = { id: string; platform: SocialPlatform; title: string; ur
 /** Totals are lifetime sums over the listed reels; viewsInRange is growth across the report range from daily snapshots. */
 export type SocialPlatformSummary = { platform: SocialPlatform; available: boolean; reason?: string; account?: string;
   reels: ReelStat[]; views: number | null; reach: number | null; interactions: number | null; viewsInRange: number | null };
+export type PlusPlan = 'monthly' | 'annual' | 'unknown';
+export type PlusStore = 'appStore' | 'googlePlay' | 'web' | 'other';
+/** Crossword Clash Plus subscriptions, read live from the app's Supabase project at collection time. */
+export type PlusSummary = {
+  available: boolean;
+  reason?: string;
+  /** Subscriptions in force (active, or in the store's billing-retry grace period, and not past expiry) that a production purchase pays for. */
+  active: number;
+  byStore: Record<PlusStore, number>;
+  /** From each subscriber's latest purchase event; the entitlement row does not name the plan. */
+  byPlan: Record<PlusPlan, number>;
+  /** In force but set not to renew: they lapse at expiry. */
+  cancelling: number;
+  /** First purchases (RevenueCat INITIAL_PURCHASE, Stripe customer.subscription.created), production only. */
+  newLast7Days: number;
+  newLast30Days: number;
+  /** monthly × $3.99 + annual × $24.99 ÷ 12, before store and processor fees; a plan the events do not name is left out. */
+  mrrCents: number;
+  /** Hand-granted rows in force (press, the owner's own accounts): entitled, never revenue. */
+  grants: number;
+  /** Sandbox (App Review, testers) and Stripe test-mode purchases, kept apart from the real figures. */
+  test: { active: number; newLast30Days: number };
+};
 export type BusinessSummary = {
   version: 1;
   generatedAt: string;
@@ -49,4 +72,5 @@ export type BusinessSummary = {
   fableReason?: string;
   apps: { project: string; name: string; stores: BusinessStore[] }[];
   social?: { project: string; name: string; platforms: SocialPlatformSummary[] }[];
+  plus?: PlusSummary;
 };
