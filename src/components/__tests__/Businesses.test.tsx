@@ -47,3 +47,30 @@ describe('Businesses reels', () => {
     expect(screen.getByRole('link', { name: 'Earth–Moon tides' }).getAttribute('href')).toBe('https://instagram.com/reel/a');
   });
 });
+
+describe('Businesses Crossword Clash Plus', () => {
+  it('shows who is paying now, what it is worth, and keeps test purchases out of the figures', async () => {
+    const plus = { available: true, active: 14, byStore: { appStore: 9, googlePlay: 3, web: 2, other: 0 }, byPlan: { monthly: 10, annual: 4, unknown: 0 },
+      cancelling: 1, newLast7Days: 2, newLast30Days: 5, mrrCents: 4823, grants: 2, test: { active: 3, newLast30Days: 1 } };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ...summary, plus }) }));
+    render(<Businesses range="7d" refresh={0} />);
+    expect(await screen.findByRole('heading', { name: 'Crossword Clash Plus' })).toBeDefined();
+    expect(screen.getByText('Subscribers').nextElementSibling?.textContent).toBe('14');
+    expect(screen.getByText('9 App Store · 3 Google Play · 2 Web (Stripe)')).toBeDefined();
+    expect(screen.getByText('Monthly revenue (est.)').nextElementSibling?.textContent).toBe('$48.23');
+    expect(screen.getByText('10 monthly · 4 annual')).toBeDefined();
+    expect(screen.getByText('2 in the last 7 days')).toBeDefined();
+    expect(screen.getByText('Cancelling').nextElementSibling?.textContent).toBe('1');
+    expect(screen.getByText('2 complimentary grants')).toBeDefined();
+    expect(screen.getByText('3 sandbox or test-mode subscriptions (1 new in 30 days), not counted')).toBeDefined();
+  });
+
+  it('says why the figures are missing instead of showing zeros', async () => {
+    const plus = { available: false, reason: 'Crossword Clash Plus is awaiting its Supabase connection.', active: 0, byStore: { appStore: 0, googlePlay: 0, web: 0, other: 0 },
+      byPlan: { monthly: 0, annual: 0, unknown: 0 }, cancelling: 0, newLast7Days: 0, newLast30Days: 0, mrrCents: 0, grants: 0, test: { active: 0, newLast30Days: 0 } };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ...summary, plus }) }));
+    render(<Businesses range="7d" refresh={0} />);
+    expect(await screen.findByText('Crossword Clash Plus is awaiting its Supabase connection.')).toBeDefined();
+    expect(screen.queryByText('Subscribers')).toBeNull();
+  });
+});
