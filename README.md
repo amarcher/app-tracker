@@ -146,7 +146,41 @@ Validation: `npm run build`, `npm run lint`, and `npm test`. The tests cover exa
 app attribution, report gaps, nullable values, importer filtering, auth boundaries,
 signed handoffs, and bounded report concurrency.
 
-### Crossword Clash Plus
+### Crossword gameplay
+
+Open **Crossword gameplay · Private** in the dashboard selector, or use
+`/?view=gameplay`. The Crossword Clash project and the private Plus card link to it.
+It reuses the existing Our businesses session: sign in through Fable admin first.
+`GET /api/crossword-gameplay?range=7d` accepts the existing private cookie or bearer
+token and rejects unauthenticated requests before reading any gameplay data.
+Responses are private and never cached publicly.
+
+The view reads Crossword Clash's existing `play_sessions` and `profiles` with the
+same production-only `CROSSWORD_CLASH_SUPABASE_SERVICE_KEY` used for Plus. No client
+instrumentation, mobile release, schema migration, new dependency, or source write
+is needed. The source key and raw player IDs never reach the browser; registered
+usernames appear only in the authenticated report. Anonymous identities stay unnamed.
+
+Ranges cover 1, 7, 30, or 90 **completed UTC days**, through yesterday. An attempt
+gains filled cells, records wrong letters, or completes a puzzle, matching the app's
+`insights_puzzles` definition. Player totals deduplicate auth IDs across visits,
+days, and platforms; platform counts can overlap. Returning means an earlier attempt
+in the preceding 90 days, and first seen means no attempt found in that lookback,
+not a new install. Platform filters apply to the lookback too. The chart and daily
+table show measured activity, with source dates and limitations alongside it.
+
+The reader paginates deterministically, caps reads at 50,000 rows, and has a shared
+25-second timeout. A failed/incomplete gameplay read is unavailable rather than a
+partial or zero total. Failure to fetch names leaves totals visible with an explicit
+notice. Old, offline, consent-restricted, or failed client reporting can leave gaps;
+owner, beta, and production activity cannot yet be reliably separated.
+
+Preview environments deliberately have no gameplay service key or private-session
+secret. They show the sign-in gate. Validate authorized live reads locally with
+existing operator access; do not copy production credentials into a preview. The
+production deployment will reuse the existing private access and source connection.
+
+### Crossword Clash Plus reporting
 
 The private Businesses view and the household feed carry the Plus subscription figures,
 read live at collection time from the app's own Supabase project (`rdqdhawlxuclfxpsvdgs`)

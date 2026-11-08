@@ -74,7 +74,7 @@ const listed = <K extends string>(pairs: readonly (readonly [K, string])[], coun
 function CrosswordPlus({ plus }: { plus: PlusSummary }) {
   const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
   return <section className="section">
-    <div className="business-heading"><h2>Crossword Clash Plus</h2><a href="https://crosswordclash.com/account">Open the site</a></div>
+    <div className="business-heading"><h2>Crossword Clash Plus</h2><a href="/?view=gameplay">See who’s playing →</a></div>
     {plus.available ? <>
       <div className="metrics-row">
         <MetricCard label="Subscribers" value={plus.active} subtitle={listed(PLUS_STORES, plus.byStore)} />

@@ -16,6 +16,7 @@ import { AmazonAppstorePanel } from './components/AmazonAppstorePanel';
 import { GooglePlayPanel } from './components/GooglePlayPanel';
 import { SearchConsoleSurvey } from './components/SearchConsoleSurvey';
 import { Businesses } from './components/Businesses';
+import { CrosswordGameplay } from './components/CrosswordGameplay';
 import type { DateRange } from './types';
 import './App.css';
 import { PROJECTS } from './config/projects';
@@ -32,6 +33,14 @@ const ELEVENLABS_VIEW = '__elevenlabs__';
 const PORTFOLIO_VIEW = '__portfolio__';
 const HOME_VIEW = '__home__';
 const BUSINESSES_VIEW = '__businesses__';
+const GAMEPLAY_VIEW = '__gameplay__';
+
+function initialView() {
+  const view = new URLSearchParams(window.location.search).get('view');
+  if (view === 'businesses') return BUSINESSES_VIEW;
+  if (view === 'gameplay') return GAMEPLAY_VIEW;
+  return PROJECTS.some(project => project.value === view) ? view! : HOME_VIEW;
+}
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -41,8 +50,8 @@ function formatDuration(seconds: number): string {
 }
 
 function App() {
-  const [range, setRange] = useState<DateRange>(() => new URLSearchParams(window.location.search).get('view') === 'businesses' ? '7d' : '1d');
-  const [project, setProject] = useState<string>(() => new URLSearchParams(window.location.search).get('view') === 'businesses' ? BUSINESSES_VIEW : HOME_VIEW);
+  const [range, setRange] = useState<DateRange>(() => initialView() === HOME_VIEW ? '1d' : '7d');
+  const [project, setProject] = useState<string>(initialView);
   const [businessRefresh, setBusinessRefresh] = useState(0);
   const [trafficMetric, setTrafficMetric] = useState<'pageviews' | 'sessions' | 'users'>('pageviews');
   const currentProject = PROJECTS.find((p) => p.value === project);
@@ -52,23 +61,27 @@ function App() {
   const isPortfolioView = project === PORTFOLIO_VIEW;
   const isHomeView = project === HOME_VIEW;
   const isBusinessesView = project === BUSINESSES_VIEW;
+  const isGameplayView = project === GAMEPLAY_VIEW;
+  const isPrivateView = isBusinessesView || isGameplayView;
 
   const projectLabels: Record<string, string> = Object.fromEntries(
     PROJECTS.map((p) => [p.value, p.label]),
   );
 
   return (
-    <div className="dashboard">
+    <div className={isGameplayView ? 'dashboard gameplay-dashboard' : 'dashboard'}>
       <header className="dashboard-header">
         <div className="header-left">
           <select
             className="project-select"
+            aria-label="Dashboard view"
             value={project}
             onChange={(e) => setProject(e.target.value)}
           >
             <optgroup label="Overview">
               <option value={HOME_VIEW}>Home</option>
               <option value={BUSINESSES_VIEW}>Our businesses</option>
+              <option value={GAMEPLAY_VIEW}>Crossword gameplay · Private</option>
             </optgroup>
             <optgroup label="Projects">
               {PROJECTS.map((p) => (
@@ -89,19 +102,20 @@ function App() {
                 className={`range-btn ${range === r.value ? 'active' : ''}`}
                 onClick={() => setRange(r.value)}
               >
-                {r.label}
+                {isGameplayView && r.value === '1d' ? 'Yesterday' : r.label}
               </button>
             ))}
           </div>
-          <button className="refresh-btn" onClick={isBusinessesView ? () => setBusinessRefresh(value => value + 1) : refetch} disabled={!isBusinessesView && loading}>
-            {loading ? 'Loading...' : 'Refresh'}
+          <button className="refresh-btn" onClick={isPrivateView ? () => setBusinessRefresh(value => value + 1) : refetch} disabled={!isPrivateView && loading}>
+            {!isPrivateView && loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
       </header>
 
-      {error && !isBusinessesView && <div className="error-banner">{error}</div>}
+      {error && !isPrivateView && <div className="error-banner">{error}</div>}
+      {project === 'crossword-clash' && <p className="gameplay-entry"><a href="/?view=gameplay">Who’s playing? Open private gameplay →</a><span>Includes iOS and Android activity that Google Analytics doesn’t measure.</span></p>}
 
-      {isBusinessesView ? <Businesses range={range} refresh={businessRefresh} /> : isHomeView ? (
+      {isGameplayView ? <CrosswordGameplay range={range} refresh={businessRefresh} /> : isBusinessesView ? <Businesses range={range} refresh={businessRefresh} /> : isHomeView ? (
         overview ? (
           <>
             <HomeOverview

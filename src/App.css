@@ -25,6 +25,40 @@ html {
   --accent-red: #ef4444;
 }
 
+.gameplay-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.gameplay-heading h1 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.035em; }
+.gameplay-heading p, .gameplay-period, .gameplay-note { color: var(--text-secondary); }
+.gameplay-eyebrow { font-size: 13px; font-weight: 600; }
+.gameplay-eyebrow span { color: var(--accent-cyan); margin-left: 8px; }
+.gameplay-period { display: flex; gap: 8px 20px; flex-wrap: wrap; font-size: 13px; margin-bottom: 20px; }
+.gameplay-period strong { color: var(--text-primary); }
+.gameplay-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.gameplay-filters button { font: inherit; font-size: 13px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 20px; padding: 8px 16px; cursor: pointer; }
+.gameplay-filters button[aria-pressed="true"] { background: var(--accent-indigo); color: white; border-color: var(--accent-indigo); }
+.gameplay button:focus-visible, .gameplay a:focus-visible, .gameplay [tabindex]:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+.gameplay-note { font-size: 13px; margin: 8px 0 12px; }
+.gameplay-caveat { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+.gameplay-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; margin: 12px 0 20px; }
+.gameplay-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; }
+.gameplay table { white-space: nowrap; }
+.gameplay td, .gameplay th { padding: 10px 14px; }
+.gameplay tbody th { text-align: left; font-weight: 500; text-transform: none; letter-spacing: normal; }
+.gameplay-coverage p { color: var(--text-secondary); font-size: 13px; margin: 10px 0; }
+.gameplay-empty { padding: 28px 0; }
+.gameplay-empty p { margin: 8px 0 20px; max-width: 560px; }
+.gameplay-entry { display: flex; gap: 8px 20px; flex-wrap: wrap; margin-bottom: 24px; font-size: 14px; }
+.gameplay-entry span { color: var(--text-secondary); }
+.gameplay-entry a { color: var(--accent-cyan); }
+@media (max-width: 600px) {
+  .gameplay-dashboard .header-controls { flex-wrap: wrap; }
+  .gameplay-dashboard .range-selector { flex-shrink: 0; }
+  .gameplay-dashboard .range-btn { padding: 8px 9px; white-space: nowrap; }
+  .gameplay .metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gameplay .metric-card { padding: 14px; }
+  .gameplay .metric-value { font-size: 28px; }
+  .gameplay .business-heading { align-items: flex-start; }
+}
+
 body {
   background: var(--bg-primary);
   color: var(--text-primary);

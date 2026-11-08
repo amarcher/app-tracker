@@ -47,7 +47,7 @@ export function useDashboardData(range: DateRange, project: string, hasCloudflar
     setAppStore(null);
     setAmazonAppstore(null);
     setGooglePlay(null);
-    if (project === '__businesses__') { setLoading(false); return; }
+    if (project === '__businesses__' || project === '__gameplay__') { setError(null); setLoading(false); return; }
     setLoading(true);
     setError(null);
 

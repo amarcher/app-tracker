@@ -1,8 +1,9 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from '../App';
 
 describe('App', () => {
+  afterEach(() => window.history.replaceState({}, '', '/'));
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
@@ -49,5 +50,15 @@ describe('App', () => {
     expect(screen.getByText('Traffic')).toBeDefined();
     expect(screen.getByText('Search Console')).toBeDefined();
     expect(screen.getByText('API Usage')).toBeDefined();
+  });
+
+  it('opens private gameplay directly without requesting public project analytics', async () => {
+    window.history.replaceState({}, '', '/?view=gameplay');
+    const fetcher = vi.fn().mockResolvedValue({ status: 401 });
+    vi.stubGlobal('fetch', fetcher);
+    render(<App />);
+    expect(await screen.findByText('Your player activity is private')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Yesterday' })).toBeDefined();
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual(['/api/crossword-gameplay?range=7d']);
   });
 });
