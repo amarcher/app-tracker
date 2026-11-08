@@ -10,12 +10,13 @@ const PLATFORMS: GameplayPlatform[] = ['ios', 'android', 'web', 'other'];
 const displayDate = (value: string) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 export function CrosswordGameplay({ range, refresh }: { range: DateRange; refresh: number }) {
-  const requestKey = `${range}:${refresh}`;
+  const [sessionRefresh, setSessionRefresh] = useState(0);
+  const requestKey = `${range}:${refresh}:${sessionRefresh}`;
   const [result, setResult] = useState<{ key: string; report?: GameplayReport; signin?: boolean; error?: boolean } | null>(null);
   const [audience, setAudience] = useState<GameplayAudience>('all');
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/crossword-gameplay?range=${range}`, { signal: controller.signal }).then(async response => {
+    fetch(`/api/business?action=gameplay&range=${range}`, { signal: controller.signal, credentials: 'same-origin', cache: 'no-store' }).then(async response => {
       if (controller.signal.aborted) return;
       if (response.status === 401) { setResult({ key: requestKey, signin: true }); return; }
       const report: GameplayReport = await response.json();
@@ -26,13 +27,27 @@ export function CrosswordGameplay({ range, refresh }: { range: DateRange; refres
     return () => controller.abort();
   }, [range, requestKey]);
   const current = result?.key === requestKey ? result : null;
+  const needsSignin = current?.signin === true;
+  useEffect(() => {
+    if (!needsSignin) return;
+    const recheck = () => setSessionRefresh(value => value + 1);
+    const onVisible = () => { if (document.visibilityState === 'visible') recheck(); };
+    window.addEventListener('pageshow', recheck);
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('pageshow', recheck);
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [needsSignin]);
   const report = current?.report;
   const intro = <div className="gameplay-heading">
     <div><p className="gameplay-eyebrow">Crossword Clash <span>Private</span></p><h1>Who’s playing</h1><p>One view of play across the apps and the website.</p></div>
     <a className="business-link" href="/?view=crossword-clash">Website &amp; installs ↗</a>
   </div>;
   if (current?.signin) return <section className="section gameplay">
-    {intro}<div className="gameplay-empty"><h2>Your player activity is private</h2><p>Open Our businesses from Fable admin to sign in, then choose Crossword gameplay in this dashboard.</p><a className="business-link" href="https://fabledesigner.com/admin/business">Open Fable admin</a></div>
+    {intro}<div className="gameplay-empty"><h2>Your player activity is private</h2><p>Open Our businesses from Fable admin to sign in, then choose Crossword gameplay in this dashboard.</p><p>Already opened Our businesses? Recheck your sign-in here.</p><button className="refresh-btn" onClick={() => setSessionRefresh(value => value + 1)}>Recheck sign-in</button> <a className="business-link" href="https://fabledesigner.com/admin/business">Open Fable admin</a></div>
   </section>;
   if (!report?.available) return <section className="section gameplay">{intro}
     <p className="gameplay-empty" role="status">{!current ? 'Reading gameplay records…' : report?.available === false ? report.reason : 'Gameplay is unavailable. Use Refresh to try again.'}</p>

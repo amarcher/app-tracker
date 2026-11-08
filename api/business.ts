@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { businessAccess, sessionCookie, verifyTicket } from './_shared/business-access.js';
 import { cachedBusiness, collectBusiness, ensureBusinessStorage } from './_shared/business-data.js';
+import gameplayHandler from './crossword-gameplay.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -13,6 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Set-Cookie', sessionCookie(secret));
     return res.redirect(303, '/?view=businesses');
   }
+  if (req.query.action === 'gameplay') return gameplayHandler(req, res);
   const cron = req.query.action === 'sync' && process.env.CRON_SECRET && req.headers.authorization === `Bearer ${process.env.CRON_SECRET}`;
   if (!cron && !businessAccess(req)) return res.status(401).json({ error: 'Open Our businesses from Fable admin.' });
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end();

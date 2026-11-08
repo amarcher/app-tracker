@@ -157,9 +157,12 @@ signed handoffs, and bounded report concurrency.
 Open **Crossword gameplay · Private** in the dashboard selector, or use
 `/?view=gameplay`. The Crossword Clash project and the private Plus card link to it.
 It reuses the existing Our businesses session: sign in through Fable admin first.
-`GET /api/crossword-gameplay?range=7d` accepts the existing private cookie or bearer
-token and rejects unauthenticated requests before reading any gameplay data.
-Responses are private and never cached publicly.
+The browser uses `GET /api/business?action=gameplay&range=7d`, the same endpoint
+as Our businesses, with the existing private cookie. The original
+`/api/crossword-gameplay` route remains compatible; both use the same handler
+and reject unauthenticated requests before reading gameplay data. Responses are
+private and never cached publicly. A locked view rechecks when returning from
+sign-in, or when the user chooses **Recheck sign-in**.
 
 The view reads Crossword Clash's existing `play_sessions` and `profiles` with the
 same production-only `CROSSWORD_CLASH_SUPABASE_SERVICE_KEY` used for Plus. No client

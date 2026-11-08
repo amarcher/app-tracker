@@ -30,6 +30,27 @@ it('filters recorded gameplay and names together, while keeping platform totals 
   expect(screen.getByText('Solver')).toBeDefined();
 });
 
+it.each(['pageshow', 'focus', 'visibilitychange', 'button'])('rechecks a previously locked view after sign-in via %s', async event => {
+  const fetcher = vi.fn().mockResolvedValueOnce({ status: 401 })
+    .mockResolvedValue({ ok: true, status: 200, json: async () => report });
+  vi.stubGlobal('fetch', fetcher);
+  render(<CrosswordGameplay range="7d" refresh={0} />);
+  await screen.findByText('Your player activity is private');
+  if (event === 'button') fireEvent.click(screen.getByRole('button', { name: 'Recheck sign-in' }));
+  else if (event === 'visibilitychange') {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event(event));
+  } else fireEvent(window, new Event(event));
+  expect(await screen.findByText('Solver')).toBeDefined();
+  expect(screen.queryByText('Your player activity is private')).toBeNull();
+  expect(fetcher).toHaveBeenLastCalledWith('/api/business?action=gameplay&range=7d',
+    expect.objectContaining({ credentials: 'same-origin', cache: 'no-store' }));
+  const requests = fetcher.mock.calls.length;
+  fireEvent(window, new Event('focus'));
+  expect(fetcher).toHaveBeenCalledTimes(requests);
+  vi.restoreAllMocks();
+});
+
 it('never renders connection failure as zero players', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({ available: false, reason: 'Connection unavailable.' }) }));
   render(<CrosswordGameplay range="7d" refresh={0} />);

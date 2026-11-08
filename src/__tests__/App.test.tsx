@@ -59,6 +59,6 @@ describe('App', () => {
     render(<App />);
     expect(await screen.findByText('Your player activity is private')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Yesterday' })).toBeDefined();
-    expect(fetcher.mock.calls.map(call => call[0])).toEqual(['/api/crossword-gameplay?range=7d']);
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual(['/api/business?action=gameplay&range=7d']);
   });
 });
