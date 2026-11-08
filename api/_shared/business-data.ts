@@ -5,6 +5,7 @@ import { loadGooglePlay } from './google-play.js';
 import { STORE_APPS, appStores, storeSource, trustedLegacyStore } from './store-apps.js';
 import { loadSocialReels, SOCIAL_ACCOUNTS } from './social-reels.js';
 import { loadCrosswordPlus } from './crossword-plus.js';
+import { loadHouseholdGameplay } from './household-gameplay.js';
 import type { BusinessDay, BusinessStore, BusinessSummary, BusinessTotals, SocialPlatformSummary, StoreDay, StoreName } from '../../src/types/business.js';
 
 const DAY = 86400_000;
@@ -169,6 +170,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
   })();
   // Read alongside the stores; the loader answers `available: false` rather than throwing, so a Supabase outage costs this block only.
   const plusRequest = loadCrosswordPlus(Date.parse(result.generatedAt));
+  const gameplayRequest = loadHouseholdGameplay(Date.parse(result.generatedAt));
   result.apps = await Promise.all(Object.entries(STORE_APPS).map(async ([project, app]) => {
     const names: StoreName[] = appStores(project);
     const reports = await Promise.allSettled(names.map(store => store === 'apple' ? loadAppStore(project, `${days}d`)
@@ -192,6 +194,7 @@ export async function collectBusiness(days: number, archive = false): Promise<Bu
   }));
   await fableRequest;
   result.plus = await plusRequest;
+  result.gameplay = await gameplayRequest;
   if (archive && process.env.DATABASE_URL) {
     const db = neon(process.env.DATABASE_URL);
     // A failed Fable source cannot erase its last successful household snapshot.

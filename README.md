@@ -131,6 +131,12 @@ upserting dated store rows. Repeated collection replaces a date rather than addi
 it again. Tables are additive and initialized by authenticated collection.
 `/api/business?action=household&range=7d` serves the cached report promptly; the
 household token belongs in `~/.smart-home/business-metrics-token` on the render host.
+
+The cached report also includes `gameplay`: the last completed UTC day's date,
+unique player identities and puzzle attempts across all platforms, or
+`available: false`. It refreshes alongside the existing hourly collection and
+contains no registered names, identifiers, or per-player history. The smart-home
+boards display this beneath installs; owner/test activity remains included.
 The house labels stale reports and discards its last-good cache after 48 hours.
 Other supported ranges are 1, 30 and 90 days; an authenticated `action=sync` can
 backfill one of these ranges. History is labelled "recorded since", not lifetime.

@@ -73,4 +73,6 @@ export type BusinessSummary = {
   apps: { project: string; name: string; stores: BusinessStore[] }[];
   social?: { project: string; name: string; platforms: SocialPlatformSummary[] }[];
   plus?: PlusSummary;
+  gameplay?: { available: true; generatedAt: string; date: string; players: number; attempts: number }
+    | { available: false };
 };
