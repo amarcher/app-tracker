@@ -51,7 +51,7 @@ describe('private gameplay reader', () => {
   });
 
   it('paginates past 1,000 visits with stable ordering and only returns aggregate counts and registered names', async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 1000 }, (_, i) => row({ id: String(i) })))))
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify([]))).mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 1000 }, (_, i) => row({ id: String(i) })))))
       .mockResolvedValueOnce(new Response(JSON.stringify([row({ id: 'last', user_id: 'registered', signed_in: true })])))
       .mockResolvedValueOnce(new Response(JSON.stringify([{ user_id: 'registered', username: 'Solver' }])));
     vi.stubGlobal('fetch', fetcher);
@@ -59,15 +59,15 @@ describe('private gameplay reader', () => {
     if (!report.available) throw new Error('report');
     expect(report.segments.all).toMatchObject({ attempts: 1001, players: 2, signedIn: 1 });
     expect(report.segments.all.registeredPlayers[0].username).toBe('Solver');
-    expect(new URL(fetcher.mock.calls[1][0]).searchParams.get('offset')).toBe('1000');
-    expect(new URL(fetcher.mock.calls[0][0]).searchParams.get('order')).toBe('started_at.asc,id.asc');
-    expect(new URL(fetcher.mock.calls[2][0]).searchParams.get('select')).toBe('user_id,username');
+    expect(new URL(fetcher.mock.calls[2][0]).searchParams.get('offset')).toBe('1000');
+    expect(new URL(fetcher.mock.calls[1][0]).searchParams.get('order')).toBe('started_at.asc,id.asc');
+    expect(new URL(fetcher.mock.calls[3][0]).searchParams.get('select')).toBe('user_id,username');
     expect(JSON.stringify(report)).not.toContain('private-test-key');
   });
 
   it('does not silently return partial totals when a later page fails or data is malformed', async () => {
     for (const last of [new Response('source error with private material', { status: 500 }), new Response(JSON.stringify([{ broken: true }]))]) {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 1000 }, (_, i) => row({ id: String(i) })))))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify([]))).mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 1000 }, (_, i) => row({ id: String(i) })))))
         .mockResolvedValueOnce(last));
       const report = await loadCrosswordGameplay(7, now, env);
       expect(report.available).toBe(false);
@@ -76,8 +76,21 @@ describe('private gameplay reader', () => {
     }
   });
 
+  it("leaves out the app's hidden test accounts, and fails rather than count them when they cannot be listed", async () => {
+    const plays = () => new Response(JSON.stringify([row({ id: 'real' }), row({ id: 't1', user_id: 'shots', signed_in: true, completed: true }), row({ id: 't2', user_id: 'shots', signed_in: true })]));
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify([{ user_id: 'shots' }]))).mockResolvedValueOnce(plays());
+    vi.stubGlobal('fetch', fetcher);
+    const report = await loadCrosswordGameplay(7, now, env);
+    if (!report.available) throw new Error('report');
+    expect(report.segments.all).toMatchObject({ players: 1, attempts: 1, completions: 0, signedIn: 0 });
+    expect(new URL(fetcher.mock.calls[0][0]).searchParams.get('hidden')).toBe('eq.true');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('unavailable', { status: 503 })).mockResolvedValueOnce(plays()));
+    expect((await loadCrosswordGameplay(7, now, env)).available).toBe(false);
+  });
+
   it('keeps counts when names cannot be read and reports that gap', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify([row({ signed_in: true })])))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify([]))).mockResolvedValueOnce(new Response(JSON.stringify([row({ signed_in: true })])))
       .mockResolvedValueOnce(new Response('unavailable', { status: 503 })));
     const report = await loadCrosswordGameplay(7, now, env);
     if (!report.available) throw new Error('report');
