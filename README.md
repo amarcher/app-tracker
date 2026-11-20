@@ -175,7 +175,11 @@ gains filled cells, records wrong letters, or completes a puzzle, matching the a
 `insights_puzzles` definition. Player totals deduplicate auth IDs across visits,
 days, and platforms; platform counts can overlap. Returning means an earlier attempt
 in the preceding 90 days, and first seen means no attempt found in that lookback,
-not a new install. Platform filters apply to the lookback too. The chart and daily
+not a new install. Platform filters apply to the lookback too. Accounts whose
+Crossword Clash profile is `hidden` (the app's own test accounts, driven through
+real puzzles to check builds and capture screenshots) are left out of every
+count; if that list cannot be read the report is unavailable. Signed-out test
+play has no profile and still counts. The chart and daily
 table show measured activity, with source dates and limitations alongside it.
 
 The reader paginates deterministically, caps reads at 50,000 rows, and has a shared

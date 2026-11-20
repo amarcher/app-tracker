@@ -88,6 +88,14 @@ export async function loadCrosswordGameplay(days: number, now = Date.now(), env 
       if (!Array.isArray(data)) throw new Error('response');
       return data;
     };
+    // Hidden profiles are the app's own test accounts, driven through real puzzles to check
+    // builds and capture screenshots; they are not players. Read first, and a failed read fails
+    // the report: counting them is the error this exists to prevent.
+    const hidden = new Set<string>();
+    for (const item of await get('profiles', new URLSearchParams({ select: 'user_id', hidden: 'eq.true', limit: String(PAGE) }))) {
+      if (!item || typeof item !== 'object' || !('user_id' in item) || typeof item.user_id !== 'string') throw new Error('response');
+      hidden.add(item.user_id);
+    }
     const { lookbackFrom, to } = gameplayWindow(days, now);
     const rows: PlayRow[] = [];
     for (let offset = 0; ; offset += PAGE) {
@@ -96,7 +104,7 @@ export async function loadCrosswordGameplay(days: number, now = Date.now(), env 
         and: `(started_at.gte.${new Date(lookbackFrom).toISOString()},started_at.lt.${new Date(to).toISOString()})`,
         order: 'started_at.asc,id.asc', limit: String(PAGE), offset: String(offset) }));
       if (!page.every(isPlayRow)) throw new Error('response');
-      rows.push(...page);
+      rows.push(...page.filter(row => !hidden.has(row.user_id)));
       if (page.length < PAGE) break;
     }
     const { from } = gameplayWindow(days, now);
